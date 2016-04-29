@@ -32,7 +32,7 @@ struct ChannelHandle {
 	struct Node *head;
 };
 
-enum RmpgErr init_channel(struct Channel **ch);
+struct Channel *init_channel(void);
 
 #define CHANNEL_H
 #endif

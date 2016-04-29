@@ -15,13 +15,10 @@
 #include <libwebsockets.h>
 
 /* Local includes */
-#include "python_integration.h"
 #include "defs.h"
 #include "channel.h"
 #include "channel_manager.h"
-#include "feed.h"
 #include "session.h"
-#include "utils.h"
 
 #define lwss libwebsocket
 
@@ -100,26 +97,38 @@ static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len
 		/* Only got a partial message. */
 	}
 	else
-		add_msg(session, in, len);
+		/* Send the message to the world! */
+		session->world->send(in, len);
+}
+
+static void init(struct lwss *wsi, struct Session *sess, void *in, size_t len) {
+	/* TODO: Check for OOM */
+	/* Initialize the world channel */
+	sess->channel_manager = init_channel_manager();
+	world = sess->channel_manager->world;
+	sess->world = world->handle(world);
+
+	sess->first_message = NULL;
+	sess->current_message = NULL;
+	sess->num_messages = 0;
+	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
 }
 
 static int callback_lws_rmpg (
 	struct lwss_context *context,
 	struct lwss *wsi,
 	enum lwss_callback_reasons reason,
-	void *user, void *in, size_t len
+	void *session, void *in, size_t len
 )
 {
-	struct Session *session = (struct Session *)user;
+	struct Session *sess = (struct Session *)session;
+	struct Channel *world;
 
 	switch (reason)
 	{
 
 		case LWS_CALLBACK_ESTABLISHED:
-			session->first_message = NULL;
-			session->current_message = NULL;
-			session->num_messages = 0;
-			lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
+			init(wsi, session, in, len);
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
@@ -132,9 +141,6 @@ static int callback_lws_rmpg (
 
 		case LWS_CALLBACK_SERVER_WRITEABLE:
 			writeable(wsi, session);
-			break;
-
-		default:
 			break;
 	}
 

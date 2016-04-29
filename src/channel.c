@@ -122,17 +122,17 @@ enum RmpgErr send(struct ChannelHandle *handle, char *payload, long psize) {
  * Communication between connected users flows through channels. Each user has
  * a list of channels that they receive events from and can publish events to.
  */
-enum RmpgErr init_channel(struct Channel **ch) {
+struct Channel *init_channel(void) {
 	struct LinkedList *lst;
 
 	if(!(*ch = malloc(sizeof struct Channel)))
-		return OUT_OF_MEM;
+		return NULL;
 
 	/* Data */
 	ch->name = NULL;
 	if(linked_list_init(&lst)) {
 		free(*ch);
-		return OUT_OF_MEM;
+		return NULL;
 	}
 	ch->lst = lst;
 
@@ -141,5 +141,5 @@ enum RmpgErr init_channel(struct Channel **ch) {
 	ch->flush = flush;
 	ch->send = send;
 
-	return OK;
+	return ch;
 }
