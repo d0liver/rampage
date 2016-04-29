@@ -10,8 +10,6 @@
 #include <syslog.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <jansson.h>
-#include <sqlite3.h>
 #include <libwebsockets.h>
 
 /* Local includes */
@@ -25,16 +23,8 @@
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
 
-enum Protocols {
-	/* always first */
-	PROTOCOL_HTTP = 0,
-	PROTOCOL_LWS_OHMU,
-	/* always last */
-	DEMO_PROTOCOL_COUNT
-};
-
 /*
- * TODO: Add in the http component.
+ * TODO: Add in the http component (for serving static files).
  */
 static int callback_http(
 	struct lwss_context *context,
@@ -128,11 +118,12 @@ static int callback_lws_rmpg (
 	{
 
 		case LWS_CALLBACK_ESTABLISHED:
+			debug("Connection established\n");
 			init(wsi, session, in, len);
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
-			lwsl_notice("Cleaning up...\n");
+			debug("Cleaning up\n");
 			break;
 
 		case LWS_CALLBACK_RECEIVE:
