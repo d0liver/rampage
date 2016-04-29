@@ -157,16 +157,6 @@ static struct lwss_protocols protocols[] =
 	{ NULL, NULL, 0, 0 } /* terminator */
 };
 
-void init_python(int argc, char **argv) {
-  Py_Initialize();
-  Py_SetProgramName("rmpg");
-  PySys_SetArgv(argc, argv);
-}
-
-void destroy_python() {
-  Py_Finalize();
-}
-
 int rmpg_main_loop(struct Rmpg *rmpg) {
 	short int status = 0;
 	while (status >= 0 && !force_exit)
@@ -192,13 +182,6 @@ int rmpg_main_loop(struct Rmpg *rmpg) {
 
 		status = lwss_service(context, 50);
 	}
-}
-
-struct RmpgResult *rmpg_err(const char *msg) {
-	struct RmpgResult *err = malloc(sizeof(struct RmpgError));
-	err->message = strdup(msg);
-
-	return err;
 }
 
 struct Rmpg *rmpg_init(struct Option *options, struct RmpgResult **res)
