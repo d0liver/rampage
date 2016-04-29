@@ -2,14 +2,15 @@
 
 #ifndef CHANNEL_H
 
-/* Communication between connected users flows through channels. Each user has
- * a list of channels that they receive events from and can publish events to. */
+/* See "init_channel" */
 struct Channel {
 	char *name;
 	struct LinkedList *lst;
 
-	/* We keep a list of the handles that we have issued so that we know when
-	 * to clean things up */
+    /*
+	 * We keep a list of the handles that we have issued so that we know when
+	 * to clean things up.
+     */
 	struct ChannelHandle *handles;
 	int num_handles;
 
@@ -19,13 +20,16 @@ struct Channel {
 	enum RmpgErr (* send)(struct ChannelHandle *, char *, long);
 };
 
-/* We hand out one of these to anyone who is interested in communicating over
- * this channel. This is what they hand back to use to perform operations on
- * the channel. */
+/* See "handle" method */
 struct ChannelHandle {
+	/* The underlying channel that we're tracking */
 	struct Channel *channel;
-	/* Everything after this up to the list head still needs to be sent */
-	struct Node *tail;
+
+	/*
+	 * Everything after this (but including this) up to the list tail still
+	 * needs to be sent.
+	 */
+	struct Node *head;
 };
 
 enum RmpgErr init_channel(struct Channel **ch);

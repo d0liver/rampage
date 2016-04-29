@@ -10,13 +10,18 @@
  * "user" here, just means some entity that's interested in the channel. It
  * could be something like an automated resource (notifications) and not a real
  * person. */
-static struct ChannelHandle handle(struct Channel *ch, struct ) {
+static struct ChannelHandle *handle(struct Channel *ch, struct ) {
 	if(!(*handle = malloc(sizeof struct ChannelHandle)))
 		return OUT_OF_MEM;
 
-	/* When the handle is first initialized, the user hasn't read anything out
-	 * of it */
-	handle->tail = ch->tail;
+	/*
+	 * We don't bother with reading any history out to the user when the handle
+	 * is created. Most of the history has already probably been destroyed.
+	 * Reading out that info should be handled elsewhere, maybe with a database
+	 * and a private channel to the user. i.o.w. a channel is not on its own
+	 * enough to implement a chat room with history from before joining.
+	 */
+	handle->head = ch->lst->tail;
 
 	return OK;
 }
@@ -100,6 +105,10 @@ enum RmpgErr *send(struct ChannelHandle *handle, char *payload, long psize) {
 	return OK;
 }
 
+/*
+ * Communication between connected users flows through channels. Each user has
+ * a list of channels that they receive events from and can publish events to.
+ */
 enum RmpgErr init_channel(struct Channel **ch) {
 	struct LinkedList *lst;
 

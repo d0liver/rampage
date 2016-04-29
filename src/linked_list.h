@@ -1,15 +1,8 @@
 #ifndef LINKED_LIST_H
 
 struct LinkedList {
-	enum RmpgErr       (* init_node)(struct Node **, char *, long);
-	enum RmpgErr       (* init)(struct NodeList **);
-	enum RmpgErr       (* insert_new)(struct LinkedList *, char *, long);
-	void               (* insert)(struct NodeList *lst, struct Node *n);
-	void               (* destroy)(struct NodeList *lst);
-	void               (* remove)(struct NodeList *lst, struct Node *which);
-	inline int         (* bytes)(struct LinkedList *lst) {
-	inline struct Node (* next)(struct Node *n) {
-	inline char        (* payload)(struct Node *n) {
+	void (* append)(struct LinkedList *, char *, long);
+	void (* prune)(struct LinkedList *, struct Node *);
 
 	/* Each entry in the linked list points to a buffer containing the message
 	 * payload. If we want to limit the total amount that is stored within the

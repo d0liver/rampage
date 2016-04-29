@@ -2,109 +2,93 @@
 
 #include "linked_list.h"
 
+/*********** Private Utils ***********/
+static struct Node *empty_node(void) {
+	struct Node *empty;
+
+	if(!(empty = malloc(sizeof struct Node)))
+		return NULL;
+
+	empty->payload_size = 0;
+	empty->payload = NULL;
+	empty->next = NULL;
+
+	return empty;
+}
+
 /* Destroy the node n and return its next elem */
-#define destroy_node(n) \
-	({ \
-		struct Node *next = n->next; \
-		free(n->payload); \
-		free(n); \
-		next; \
-	})
+static inline struct Node *destroy_node(struct Node *n) {
+{
+	struct Node *next = n->next;
+	free(n->payload);
+	free(n);
 
-static enum RmpgErr init_node(struct Node **n, char *payload, long psize) {
-	if(!(*n = malloc(sizeof struct Node)))
-		return OUT_OF_MEM;
-
-	(*n)->payload = payload;
-	(*n)->payload_size = psize;
-	(*n)->next = NULL;
-
-	return OK;
+	return next;
 }
 
-/* Insert a new node into the list */
-static enum RmpgErr insert_new(struct LinkedList *lst, char *payload, long psize) {
-	struct Node *n;
+/*********** Public API ***********/
+/* Remove from lst->head through n (exclusive) */
+static void prune(struct LinkedList *lst, struct Node *n) {
+	struct Node *cur = lst->head;
+	lst->head = n;
 
-	if(lst->init_node(&n, payload, psize))
-		return OUT_OF_MEM;
-
-	lst->insert(lst, n);
-
-	return OK;
-}
-
-/* Remove from node a till node b */
-static void remove_till(struct Node *a, struct Node *b) {
-	a->next = b->next;
+	while(n != (cur = destroy_node(cur)));
 }
 
 /*
- * Insert node to the head of the list. The list grows to the left.
- * head -> .-> .-> NULL
+ * Append node to the head of the list. The list grows to the left.
+ * empty_node <-. <-. <-.
+ *      ^       ^       ^
+ *      |       |       |
+ *     tail   head_n   head
+ *
+ * Users of the list can track it with their own head_n. They can track any
+ * item in the list, including the empty_node (makes it so that all non empty
+ * nodes can be freed without having users point to freed memory).
+ *
+ * Returns a pointer to the new empty node (new tail) or NULL if unsuccessful.
  */
-static void insert(struct LinkedList *lst, struct Node *n) {
-	/* Point the new node at the old head (head could be NULL and that is fine)
-	 * */
-	n->next = lst->head;
-	/* Move the head over */
-	lst->head = n;
-}
+static struct Node *append(struct LinkedList *lst, char *payload, long psize) {
+	struct *empt;
 
-/* Destroy the whole lst */
-static void destroy(struct LinkedList *lst) {
-	struct Node *n = lst->head;
+	if (!(*empt = empty_node()))
+		return NULL;
 
-	/* Iterate the list and destroy each node */
-	while (n = destroy_node(n));
-}
+	/* Fill out the empty node. */
+	lst->tail->payload = payload;
+	lst->tail->payload_size = psize;
+	lst->tail->next = empt;
 
-/* Remove which from the list */
-static void remove(struct LinkedList *lst, struct Node *which) {
-	struct Node **pp = &lst->head;
+	/* Now, move the tail to the new empty node */
+	lst->tail = empt;
 
-	/* Find the node to update and store its address in *pp (could have been
-	 * lst->head). */
-	while(*pp != which)
-		if (!(*pp)->next)
-			return;
-		else
-			*remove = &(*remove)->next
-
-	(*pp)->next = which->next;
-	destroy_node(which);
-}
-
-static inline char *payload(struct Node *n) {
-	return n->payload;
-}
-
-static inline struct Node *next(struct Node *n) {
-	return n->next;
-}
-
-static inline int bytes(struct LinkedList *lst) {
-	return lst->bytes;
-}
-
-enum RmpgErr linked_list_init(struct LinkedList **lst) {
-	if(!(*lst = malloc(sizeof struct LinkedList)))
-		return OUT_OF_MEM;
-
-	(*lst)->head = NULL;
-	(*lst)->bytes = 0;
-	(*lst)->node_init = node_init;
-
-	/* Methods */
-	(*lst)->init_node  =  init_node;
-	(*lst)->init       =  init;
-	(*lst)->insert_new =  insert_new;
-	(*lst)->insert     =  insert;
-	(*lst)->destroy    =  destroy;
-	(*lst)->remove     =  remove;
-	(*lst)->bytes      =  bytes;
-	(*lst)->next       =  next;
-	(*lst)->payload    =  payload;
+	/* Increase the by count */
+	lst->bytes += psize;
 
 	return OK;
+}
+
+struct LinkedList *linked_list_init() {
+	/* We use an empty node as the head so that way when we hand out references
+	 * to the node the references will be correct whenever the node is
+	 * populated */
+	struct Node *empty_node;
+
+	if(!(lst = malloc(sizeof struct LinkedList)))
+		return NULL;
+
+	if (!empty_node()) {
+		free(lst);
+		return NULL;
+	}
+
+	(*lst)->head = empty_node;
+	(*lst)->tail = empty_node;
+	(*lst)->bytes = 0;
+
+	/* Methods */
+	(*lst)->append = append;
+	(*lst)->prune  = prune;
+
+	return lst;
 }
