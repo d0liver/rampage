@@ -49,32 +49,14 @@ static int callback_http(
 	return 0;
 }
 
-/*
- * Format a message to be sent with libwebsockets.
- * __modifies msg__
- */
-static enum RmpgErr fmt_msg(
-	unsigned char **msg,
-	int *len,
-	unsigned char *start
-) {
-	int new_len = LWS_SEND_BUFFER_PRE_PADDING + len; 
-
-	if(!(*msg = realloc(new_len)))
-		return OUT_OF_MEM;
-
-	*len = new_len;
-	*start = memcpy(*msg + LWS_SEND_BUFFER_PRE_PADDING, *msg, len);
-
-	return OK;
-}
-
 /* libwebsockets gave us a write callback. Time to try to write out some data */
 static enum RmpgErr writeable(struct lwss *wsi, struct Session *sess) {
 	int i;
 
-	/* Send all of the messages that are waiting in each channel (from everyone
-	 * else to us) */
+    /*
+	 * Send all of the messages that are waiting in each channel (from everyone
+	 * else to us)
+     */
 	for (i = 0; i < sess->num_ch_handles; ++i)
 		sess->ch_handles[i]->channel->flush(sess->ch_handles + i);
 
@@ -84,20 +66,13 @@ static enum RmpgErr writeable(struct lwss *wsi, struct Session *sess) {
 	}
 
 	/*
-	 * For tests with chrome on same machine as client and server,
-	 * this is needed to stop chrome choking.
+	 * For tests with chrome on same machine as client and server, this is
+	 * needed to stop chrome from choking.
 	 */
 	usleep(1);
 }
 
-static int receive (
-	struct lwss *wsi,
-	struct Session *session,
-	void *in, size_t len
-) {
-	json_error_t err;
-	json_t *doc, *request_type;
-	const char *request_type_str;
+static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len) {
 	const size_t remaining = lwsss_remaining_packet_payload(wsi);
 
 	/* TODO: When should we start dropping? */
@@ -117,23 +92,6 @@ static int receive (
 			session->current_message = NULL;
 			session->num_messages = 0;
 		}
-
-		doc = json_loads((const char *)in, 0, &err);
-		if (!doc || !json_is_object(doc))
-		{
-			fprintf(stderr, "Invalid request object\n");
-			return 0;
-		}
-
-		request_type = json_object_get(doc, "request_type");
-		if (!json_is_string(request_type))
-		{
-			fprintf(stderr, "Invalid request_type\n");
-			json_decref(doc);
-			return 0;
-		}
-
-		json_decref(doc);
 
 		/* Request a write and we're finished */
 		lwss_callback_on_writable_all_protocol(

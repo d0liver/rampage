@@ -76,6 +76,8 @@ static enum RmpgErr flush(struct ChannelHandle *handle, struct lwss *wsi) {
 	char *buff;
 	int len, bytes_written;
 
+	/* TODO: It's actually not necessary to assemble here. We can just call
+	 * write multiple times with whatever we have available */
 	if(!(buff = assemble(handle, &len))
 		return OUT_OF_MEM;
 
@@ -105,7 +107,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, struct lwss *wsi) {
 }
 
 /* Add the payload to the queue to be sent later */
-enum RmpgErr *send(struct ChannelHandle *handle, char *payload, long psize) {
+enum RmpgErr send(struct ChannelHandle *handle, char *payload, long psize) {
 	/* The node to be added */
 	struct Node *n;
 	struct LinkedList *lst = handle->channel->lst;
