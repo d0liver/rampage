@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <libwebsockets.h>
 #include "channel.h"
+#include "buff.h"
 #define lwss libwebsocket
 
 /* Get a handle for the channel. A handle is basically a reference that a user
@@ -10,7 +11,7 @@
  * "user" here, just means some entity that's interested in the channel. It
  * could be something like an automated resource (notifications) and not a real
  * person. */
-static struct ChannelHandle *handle(struct Channel *ch, struct ) {
+static struct ChannelHandle *handle(struct Channel *ch) {
 	if(!(*handle = malloc(sizeof struct ChannelHandle)))
 		return OUT_OF_MEM;
 
@@ -22,75 +23,85 @@ static struct ChannelHandle *handle(struct Channel *ch, struct ) {
 	 * enough to implement a chat room with history from before joining.
 	 */
 	handle->head = ch->lst->tail;
+	handle->channel = ch;
 
 	return OK;
 }
 
 /* Assemble a message from the queue so that we can try to send it */
-static enum RmpgErr assemble(struct ChannelHandle *handle, char **buff) {
+static struct Buff *assemble(struct ChannelHandle *handle, int *len) {
 	struct LinkedList *lst = handle->channel->lst;
-	struct Node *n;
-	char *buff, *buffpos;
+	struct Node *n = handle->head;
+	char *buffp;
 
-	if(!(*buff = malloc(lst->bytes() + LWS_SEND_BUFFER_PRE_PADDING)))
-		return OUT_OF_MEM;
+	if(!(buff = malloc(lst->bytes + LWS_SEND_BUFFER_PRE_PADDING)))
+		return NULL;
 
-	*buff += LWS_SEND_BUFFER_PRE_PADDING;
-	buffpos = *buff;
-	n = handle->tail;
-	while (n = lst->next(n))
-		buffpos = memcpy(buffpos, n->payload, n->payload_size);
+	buff += LWS_SEND_BUFFER_PRE_PADDING;
+	buffp = buff;
 
-	return OK;
+	while ((n = n->next) != lst->tail)
+		buffp = memcpy(buffp, n->payload, n->payload_size) + n->payload_size;
+
+	if (len)
+		*len = buffp - buff;
+
+	return buff;
 }
 
 static void check_free(struct Channel *ch) {
-	struct LinkedList *lst = ch->lst;
 	struct Node *n;
-	struct ChannelHandle *back_handle;
 	int i;
 
 	if (!ch->num_handles)
 		return;
 
-	/* Iterate the handle tails and find the one in the back */
-	for (n = ch->handles[0]; n = lst->next(n);)
+    /*
+	 * Start from the top of the list and iterate until we find the first
+	 * handle (actually the handle's head). Since data is appended on the end
+	 * everything before this handle will be unused now so it can be destroyed.
+     */
+	for (n = lst->head; ; n = n->next;)
 		for (i = 0; i < ch->num_handles; ++i)
-			if (n == ch->handles[i]->tail)
-				back_handle = ch->handles[i];
+			if (n == ch->handles[i]->head)
+				break 2;
 
-	/* Remove the range from the end of the list till the tail of the
-	 * back_handle */
-	lst->remove_till(back_handle->tail);
+	/* Remove all of the old data that has been ready by everybody already. */
+	ch->lst->prune(n);
 }
 
-/* Flush the data for the given handle to the user */
+/* Assemble and flush messages to the user. */
 static enum RmpgErr flush(struct ChannelHandle *handle, struct lwss *wsi) {
 	struct LinkedList *lst = handle->channel->lst;
 	char *buff;
-	int bytes_written;
+	int len, bytes_written;
 
-	if(assemble(handle, &buff, &len))
+	if(!(buff = assemble(handle, &len))
 		return OUT_OF_MEM;
 
 	bytes_written = lwss_write (wsi, buff, lst->bytes(), LWS_WRITE_TEXT);
-	free(buff);
 
 	if (bytes_written < 0)
 		return ERROR_WRITING_TO_SOCKET;
 
+	/* FIXME: Maybe we should try again? */
 	if (bytes_written < lst->bytes())
 		return ERROR_PARTIAL_WRITE;
-	/* FIXME: Maybe we should try again? */
 
-	/* The write was successful, we can go ahead and update our tail
-	 * (indicating that we no longer need those nodes) */
-	handle->tail = handle->channel->head;
-	/* There may be nodes that can be freed now (if we were the last one in the
-	 * channel to use the nodes that we just released) */
+    /*
+	 * The write was successful, we can go ahead and update our head
+	 * (indicating that we no longer need those nodes)
+     */
+	handle->head = handle->channel->tail;
+
+    /*
+	 * There may be nodes that can be freed now (if we were the last one in the
+	 * channel to use the nodes that we just released)
+     */
 	check_free(handle->channel);
+	free(buff);
 
-	return OK;
+	return bytes_written;
 }
 
 /* Add the payload to the queue to be sent later */
