@@ -1,0 +1,4 @@
+Makefile
+*.def
+CMakeFiles/
+rampage.pc
