@@ -13,3 +13,7 @@ Development
 ===========
 Rampage is still in the very early stages of development and is not yet ready
 for production use or testing.
+
+License
+=======
+This software is released under the MIT license.
