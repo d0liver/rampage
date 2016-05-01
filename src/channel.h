@@ -15,7 +15,7 @@ struct Channel {
 	int num_handles;
 
 	/* Methods */
-	enum RmpgErr (* handle)(struct Channel *, struct ChannelHandle **);
+	struct ChannelHandle *(* handle)(struct Channel *, struct ChannelHandle **);
 	enum RmpgErr (* flush)(struct ChannelHandle *, char *);
 	enum RmpgErr (* send)(struct ChannelHandle *, char *, long);
 };

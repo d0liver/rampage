@@ -16,9 +16,15 @@ static struct Node *empty_node(void) {
 	return empty;
 }
 
+/* Assemble from n through lst->tail (exclusive) into buff (buff provided
+ * should be large enough to fit the contents). */
+static void assemble(struct LinkedList *lst, struct Node *n, char *buff) {
+	while ((n = n->next) != lst->tail)
+		buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
+}
+
 /* Destroy the node n and return its next elem */
 static inline struct Node *destroy_node(struct Node *n) {
-{
 	struct Node *next = n->next;
 	free(n->payload);
 	free(n);
@@ -68,6 +74,12 @@ static struct Node *append(struct LinkedList *lst, char *payload, long psize) {
 	return OK;
 }
 
+/* Append another list onto the end of this one. */
+static void append_list(struct LinkedList *lst, struct LinkedList *append) {
+	lst->tail = append->head;
+	lst->bytes += append->bytes;
+}
+
 struct LinkedList *linked_list_init() {
 	/* We use an empty node as the head so that way when we hand out references
 	 * to the node the references will be correct whenever the node is
@@ -87,8 +99,10 @@ struct LinkedList *linked_list_init() {
 	(*lst)->bytes = 0;
 
 	/* Methods */
-	(*lst)->append = append;
+	(*lst)->assemble = assemble;
 	(*lst)->prune  = prune;
+	(*lst)->append = append;
+	(*lst)->append_list = append_list;
 
 	return lst;
 }

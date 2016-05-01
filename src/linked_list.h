@@ -1,8 +1,11 @@
 #ifndef LINKED_LIST_H
 
 struct LinkedList {
-	void (* append)(struct LinkedList *, char *, long);
+	void (* assemble)(struct LinkedList *lst, struct Node *n, char *buff) {
 	void (* prune)(struct LinkedList *, struct Node *);
+	void (* append)(struct LinkedList *, char *, long);
+	void (* append_list)(struct LinkedList *, struct LinkedList *);
+	void (* destroy)(struct LinkedList *);
 
 	/* Each entry in the linked list points to a buffer containing the message
 	 * payload. If we want to limit the total amount that is stored within the

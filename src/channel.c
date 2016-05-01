@@ -29,26 +29,6 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 }
 
 /* Assemble a message from the queue so that we can try to send it */
-static struct Buff *assemble(struct ChannelHandle *handle, int *len) {
-	struct LinkedList *lst = handle->channel->lst;
-	struct Node *n = handle->head;
-	char *buffp;
-
-	if(!(buff = malloc(lst->bytes + LWS_SEND_BUFFER_PRE_PADDING)))
-		return NULL;
-
-	buff += LWS_SEND_BUFFER_PRE_PADDING;
-	buffp = buff;
-
-	while ((n = n->next) != lst->tail)
-		buffp = memcpy(buffp, n->payload, n->payload_size) + n->payload_size;
-
-	if (len)
-		*len = buffp - buff;
-
-	return buff;
-}
-
 static void check_free(struct Channel *ch) {
 	struct Node *n;
 	int i;
@@ -73,21 +53,34 @@ static void check_free(struct Channel *ch) {
 /* Assemble and flush messages to the user. */
 static enum RmpgErr flush(struct ChannelHandle *handle, struct lwss *wsi) {
 	struct LinkedList *lst = handle->channel->lst;
-	char *buff;
 	int len, bytes_written;
-
-	/* TODO: It's actually not necessary to assemble here. We can just call
-	 * write multiple times with whatever we have available */
-	if(!(buff = assemble(handle, &len))
+	char *buff;
+	const int padding =
+	if(!(buff = malloc(
+		lst->bytes +
+		LWS_SEND_BUFFER_PRE_PADDING +
+		LWS_SEND_BUFFER_POST_PADDING
+	))
 		return OUT_OF_MEM;
 
-	bytes_written = lwss_write (wsi, buff, lst->bytes(), LWS_WRITE_TEXT);
+	buff += padding;
+
+    /*
+	 * TODO: It's actually not necessary to assemble here. We can just call
+	 * write multiple times with whatever we have available. However, if we do
+	 * things that way then we will need to move all of the data anyway because
+	 * it needs to be preceded with some padding for lws (this seems like a
+	 * shitty design). Maybe ideas in the future will be better? It would be
+	 * nice, maybe, if we didn't need to move this data to send it.
+     */
+	buff = lst->assemble(lst, handle->head, buff);
+
+	bytes_written = lwss_write (wsi, buff, lst->bytes, LWS_WRITE_TEXT);
 
 	if (bytes_written < 0)
 		return ERROR_WRITING_TO_SOCKET;
-
 	/* FIXME: Maybe we should try again? */
-	if (bytes_written < lst->bytes())
+	else if (bytes_written < lst->bytes)
 		return ERROR_PARTIAL_WRITE;
 
     /*
@@ -107,16 +100,21 @@ static enum RmpgErr flush(struct ChannelHandle *handle, struct lwss *wsi) {
 }
 
 /* Add the payload to the queue to be sent later */
-enum RmpgErr send(struct ChannelHandle *handle, char *payload, long psize) {
+static enum RmpgErr send(struct ChannelHandle *handle, char *payload, long psize) {
 	/* The node to be added */
 	struct Node *n;
 	struct LinkedList *lst = handle->channel->lst;
 
-	if(lst->insert_new(lst, payload, psize))
+	if(lst->append(lst, payload, psize))
 		return OUT_OF_MEM;
 
 	return OK;
 }
+
+/*
+ * TODO: Implement send_nodes (add nodes directly to the queue to keep from
+ * having to copy messages that won't be parsed before sending.)
+ */
 
 /*
  * Communication between connected users flows through channels. Each user has

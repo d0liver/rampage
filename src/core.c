@@ -22,6 +22,8 @@
 
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
+static ChannelManager channel_mgr;
+static Channel world;
 
 /*
  * TODO: Add in the http component (for serving static files).
@@ -37,7 +39,7 @@ static int callback_http(
 }
 
 /* libwebsockets gave us a write callback. Time to try to write out some data */
-static enum RmpgErr writeable(struct lwss *wsi, struct Session *sess) {
+static int writeable(struct lwss *wsi, struct Session *sess) {
 	int i;
 
     /*
@@ -57,6 +59,7 @@ static enum RmpgErr writeable(struct lwss *wsi, struct Session *sess) {
 	 * needed to stop chrome from choking.
 	 */
 	usleep(1);
+	return 0;
 }
 
 static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len) {
@@ -65,30 +68,36 @@ static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
 
-	debug("Received: %s\n", (unsigned char *)in);
-	debug("Remaining: %d\n", (int)remaining);
+	debug("Received: %s\n", (char *) in);
+	debug("Remaining: %d\n", (int) remaining);
 
+	/* Message is finished. */
 	if (!remaining && lwss_is_final_fragment(wsi))
 	{
-		if (session->num_messages)
-		{
-			/* Add this, the last message */
-			add_msg(session, in, len);
-			in = assemble_and_free_message(session->first_message, session->num_messages);
-			session->first_message = NULL;
-			session->current_message = NULL;
-			session->num_messages = 0;
-		}
+		char *buff;
 
-		/* Request a write and we're finished */
-		lwss_callback_on_writable_all_protocol(
-			lwsss_get_protocol(wsi)
+		if(!(buff = malloc(session->pending->bytes)))
+			return -1;
+
+		session->pending->append(session->pending, in, len);
+		/* Assemble the whole message */
+		session->pending->assemble(
+			session->pending,
+			session->pending->tail,
+			buff
 		);
-		/* Only got a partial message. */
+		/* This will also free up the previous payloads attached to the list */
+		session->pending->prune(session->pending->tail);
+
+        /*
+		 * Do useful things! We have a message now and we can do things with it
+		 * (like send it to a channel for other users to look at).
+         */
+		event_mgr->handle(buff);
 	}
+	/* Only got a partial message. */
 	else
-		/* Send the message to the world! */
-		session->world->send(in, len);
+		session->pending->append(session->pending, in, len);
 }
 
 static void init(struct lwss *wsi, struct Session *sess, void *in, size_t len) {
