@@ -1,6 +1,9 @@
-#include "linked_list.h"
-
 #ifndef CHANNEL_H
+
+#include <libwebsockets.h>
+
+#include "lws_short.h"
+#include "linked_list.h"
 
 /* See "init_channel" */
 struct Channel {
@@ -15,9 +18,9 @@ struct Channel {
 	int num_handles;
 
 	/* Methods */
-	struct ChannelHandle *(* handle)(struct Channel *, struct ChannelHandle **);
-	enum RmpgErr (* flush)(struct ChannelHandle *, char *);
-	enum RmpgErr (* send)(struct ChannelHandle *, char *, long);
+	struct ChannelHandle *(* handle)(struct Channel *);
+	enum RmpgErr (* flush)(struct ChannelHandle *, lws_wsi *wsi);
+	enum RmpgErr (* snd)(struct ChannelHandle *, char *, long);
 };
 
 /* See "handle" method */

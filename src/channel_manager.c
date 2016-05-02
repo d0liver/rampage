@@ -1,11 +1,11 @@
 #include <stdlib.h>
+
 #include "channel_manager.h"
-#include "channel.h"
 
-struct ChannelMgr *init_channel_manager(void) {
-	struct ChannelMgr *mgr;
+struct ChannelManager *init_channel_manager(void) {
+	struct ChannelManager *mgr;
 
-	if (!(mgr = malloc(sizeof struct ChannelMgr)))
+	if (!(mgr = malloc(sizeof (struct ChannelManager))))
 		return NULL;
 
 	/* Nothing special about "world" except that each session will take out a

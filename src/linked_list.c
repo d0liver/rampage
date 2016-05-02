@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "linked_list.h"
 
@@ -6,7 +7,7 @@
 static struct Node *empty_node(void) {
 	struct Node *empty;
 
-	if(!(empty = malloc(sizeof struct Node)))
+	if(!(empty = malloc(sizeof (struct Node))))
 		return NULL;
 
 	empty->payload_size = 0;
@@ -55,9 +56,9 @@ static void prune(struct LinkedList *lst, struct Node *n) {
  * Returns a pointer to the new empty node (new tail) or NULL if unsuccessful.
  */
 static struct Node *append(struct LinkedList *lst, char *payload, long psize) {
-	struct *empt;
+	struct Node *empt;
 
-	if (!(*empt = empty_node()))
+	if (!(empt = empty_node()))
 		return NULL;
 
 	/* Fill out the empty node. */
@@ -81,28 +82,29 @@ static void append_list(struct LinkedList *lst, struct LinkedList *append) {
 }
 
 struct LinkedList *linked_list_init() {
+	struct LinkedList *lst;
 	/* We use an empty node as the head so that way when we hand out references
 	 * to the node the references will be correct whenever the node is
 	 * populated */
-	struct Node *empty_node;
+	struct Node *empt;
 
-	if(!(lst = malloc(sizeof struct LinkedList)))
+	if(!(lst = malloc(sizeof (struct LinkedList))))
 		return NULL;
 
-	if (!empty_node()) {
+	if (!(empt = empty_node())) {
 		free(lst);
 		return NULL;
 	}
 
-	(*lst)->head = empty_node;
-	(*lst)->tail = empty_node;
-	(*lst)->bytes = 0;
+	lst->head = empt;
+	lst->tail = empt;
+	lst->bytes = 0;
 
 	/* Methods */
-	(*lst)->assemble = assemble;
-	(*lst)->prune  = prune;
-	(*lst)->append = append;
-	(*lst)->append_list = append_list;
+	lst->assemble = assemble;
+	lst->prune  = prune;
+	lst->append = append;
+	lst->append_list = append_list;
 
 	return lst;
 }

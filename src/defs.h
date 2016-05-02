@@ -1,3 +1,5 @@
+#ifndef DEFS_H
+
 #define DEBUG 1
 #define MAX_MESSAGE_QUEUE 32
 #define MAX_SLOTS 100
@@ -20,3 +22,6 @@
 			return 1; \
 		} \
 	} while (0)
+
+#define DEFS_H
+#endif

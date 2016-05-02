@@ -13,33 +13,33 @@
 #include <libwebsockets.h>
 
 /* Local includes */
+#include "rampage.h"
+#include "lws_short.h"
 #include "defs.h"
 #include "channel.h"
 #include "channel_manager.h"
 #include "session.h"
 
-#define lwss libwebsocket
-
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
-static ChannelManager channel_mgr;
-static Channel world;
+static struct ChannelManager channel_mgr;
+static struct Channel *world;
 
 /*
  * TODO: Add in the http component (for serving static files).
  */
 static int callback_http(
-	struct lwss_context *context,
-	struct lwss *wsi,
-	enum lwss_callback_reasons reason,
-	void *user, void *in, size_t len
+	lws_ctx *ctx,
+	lws_wsi *wsi,
+	lws_callback_reasons reason,
+	void *sess, void *in, size_t len
 )
 {
 	return 0;
 }
 
 /* libwebsockets gave us a write callback. Time to try to write out some data */
-static int writeable(struct lwss *wsi, struct Session *sess) {
+static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	int i;
 
     /*
@@ -47,10 +47,10 @@ static int writeable(struct lwss *wsi, struct Session *sess) {
 	 * else to us)
      */
 	for (i = 0; i < sess->num_ch_handles; ++i)
-		sess->ch_handles[i]->channel->flush(sess->ch_handles + i);
+		sess->ch_handles[i].channel->flush(sess->ch_handles + i, wsi);
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
-		lwss_callback_on_writable(context, wsi);
+		lwss_callback_on_writable(ctx, wsi);
 		return 0;
 	}
 
@@ -62,7 +62,7 @@ static int writeable(struct lwss *wsi, struct Session *sess) {
 	return 0;
 }
 
-static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len) {
+static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	const size_t remaining = lwsss_remaining_packet_payload(wsi);
 
 	/* TODO: When should we start dropping? */
@@ -76,47 +76,42 @@ static int receive (struct lwss *wsi, struct Session *sess, void *in, size_t len
 	{
 		char *buff;
 
-		if(!(buff = malloc(session->pending->bytes)))
+		if(!(buff = malloc(sess->pending->bytes)))
 			return -1;
 
-		session->pending->append(session->pending, in, len);
+		sess->pending->append(sess->pending, in, len);
 		/* Assemble the whole message */
-		session->pending->assemble(
-			session->pending,
-			session->pending->tail,
+		sess->pending->assemble(
+			sess->pending,
+			sess->pending->tail,
 			buff
 		);
 		/* This will also free up the previous payloads attached to the list */
-		session->pending->prune(session->pending->tail);
+		sess->pending->prune(sess->pending, sess->pending->tail);
 
         /*
 		 * Do useful things! We have a message now and we can do things with it
 		 * (like send it to a channel for other users to look at).
          */
-		event_mgr->handle(buff);
+		/* event_mgr->handle(buff); */
 	}
 	/* Only got a partial message. */
 	else
-		session->pending->append(session->pending, in, len);
+		sess->pending->append(sess->pending, in, len);
 }
 
-static void init(struct lwss *wsi, struct Session *sess, void *in, size_t len) {
+static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	/* TODO: Check for OOM */
 	/* Initialize the world channel */
-	sess->channel_manager = init_channel_manager();
-	world = sess->channel_manager->world;
-	sess->world = world->handle(world);
+	sess->ch_mgr = init_channel_manager();
 
-	sess->first_message = NULL;
-	sess->current_message = NULL;
-	sess->num_messages = 0;
 	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
 }
 
 static int callback_lws_rmpg (
-	struct lwss_context *context,
-	struct lwss *wsi,
-	enum lwss_callback_reasons reason,
+	lws_ctx *ctx,
+	lws_wsi *wsi,
+	lws_callback_reasons reason,
 	void *session, void *in, size_t len
 )
 {
@@ -140,7 +135,7 @@ static int callback_lws_rmpg (
 		break;
 
 		case LWS_CALLBACK_SERVER_WRITEABLE:
-			writeable(wsi, session);
+			writeable(wsi, ctx, session);
 			break;
 	}
 
@@ -148,8 +143,7 @@ static int callback_lws_rmpg (
 }
 
 /* list of supported protocols and callbacks */
-static struct lwss_protocols protocols[] =
-{
+static lws_protocols protocols[] = {
 	/* first protocol must always be HTTP handler */
 	{
 		"http-only",		/* name */
@@ -166,7 +160,7 @@ static struct lwss_protocols protocols[] =
 	{ NULL, NULL, 0, 0 } /* terminator */
 };
 
-int rmpg_main_loop(struct Rmpg *rmpg) {
+int rmpg_main_loop(struct Rmpg *rmpg, lws_ctx *ctx) {
 	short int status = 0;
 	while (status >= 0 && !force_exit)
 	{
@@ -189,89 +183,89 @@ int rmpg_main_loop(struct Rmpg *rmpg) {
 		 * the number of ms in the second argument.
 		 */
 
-		status = lwss_service(context, 50);
+		status = lwss_service(ctx, 50);
 	}
 }
 
-struct Rmpg *rmpg_init(struct Option *options, struct RmpgResult **res)
+struct Rmpg *rmpg_init(void)
 {
-	struct Rmpg *rmpg = malloc(sizeof(struct Rmpg));
-	rmpg->lws_context_creation_info =
-		malloc(sizeof(lws_context_creation_info));
-	memset(&info, 0, sizeof(info));
-	info.port = 80;
-	/* Init options and set them to NULL */
-	rmpg->options = malloc(sizeof(struct Options));
-	memset(rmpg->options, 0, sizeof(rmpg->options));
-	rmpg->options->use_ssl = 1;
-	rmpg->options->syslog_options = LOG_PID | LOG_PERROR;
-
-	rmpg->options->debug_level = LLL_ERR | LLL_WARN | LLL_NOTICE;
-	rmpg->options->daemonize = 0;
-
-	init_python(argc, argv);
-
-	/*
-	 * Normally lock path would be /var/lock/lwsts or similar, to simplify
-	 * getting started without having to take care about permissions or running
-	 * as root, set to /tmp/.lwsts-lock
-	 */
-	if (daemonize && lws_daemonize("/tmp/.lwsts-lock"))
-	{
-		fprintf(stderr, "Failed to daemonize\n");
-		return 1;
-	}
-
-	/* We will only try to log things according to our debug_level */
-	setlogmask(LOG_UPTO (LOG_DEBUG));
-	openlog("lwsts", rmpg->options->syslog_options, LOG_DAEMON);
-
-	/* Tell the library what debug level to emit and to send it to syslog */
-	lws_set_log_level(debug_level, lwsl_emit_syslog);
-
-	rmpg->info->iface = rmpg->options->iface;
-	rmpg->info->protocols = rmpg->options->protocols;
-
-	/* LWS extensions */
-	rmpg->info->extensions = lwss_get_internal_extensions();
-
-	/* !FIXME */
-	if (rmpg->options->resource_path && !rmpg->options->cert_path) {
-		sprintf(
-			rmpg->options->cert_path,
-			"%s/libwebsockets-test-server.pem",
-			resource_path
-		);
-	}
-	if (strlen(resource_path) > sizeof(key_path) - 32)
-	{
-		lwsl_err("resource path too long\n");
-		return -1;
-	}
-	sprintf(
-		key_path,
-		"%s/libwebsockets-test-server.key.pem",
-		resource_path
-	);
-
-	rmpg->info->ssl_cert_filepath = cert_path;
-	rmpg->info->ssl_private_key_filepath = key_path;
-	rmpg->info->gid = -1;
-	rmpg->info->uid = -1;
-	rmpg->info->options = opts;
-
-	context = lwss_create_context(&info);
-	if (!context)
-	{
-		*res = rmpg_err("Rampage failed to init lws context.\n");
-		goto context_init_fail;
-	}
-
-	lwss_context_destroy(context);
-	lwsl_notice("Rampage exited cleanly.\n");
-	destroy_python();
-
-context_init_fail:
-	return NULL;
-	return rmpg;
+/* 	struct Rmpg *rmpg = malloc(sizeof(struct Rmpg)); */
+/* 	rmpg->lws_context_creation_info = */
+/* 		malloc(sizeof(lws_context_creation_info)); */
+/* 	memset(&info, 0, sizeof(info)); */
+/* 	info.port = 80; */
+/* 	#<{(| Init options and set them to NULL |)}># */
+/* 	rmpg->options = malloc(sizeof(struct Options)); */
+/* 	memset(rmpg->options, 0, sizeof(rmpg->options)); */
+/* 	rmpg->options->use_ssl = 1; */
+/* 	rmpg->options->syslog_options = LOG_PID | LOG_PERROR; */
+/*  */
+/* 	rmpg->options->debug_level = LLL_ERR | LLL_WARN | LLL_NOTICE; */
+/* 	rmpg->options->daemonize = 0; */
+/*  */
+/* 	init_python(argc, argv); */
+/*  */
+/* 	#<{(| */
+/* 	 * Normally lock path would be /var/lock/lwsts or similar, to simplify */
+/* 	 * getting started without having to take care about permissions or running */
+/* 	 * as root, set to /tmp/.lwsts-lock */
+/* 	 |)}># */
+/* 	if (daemonize && lws_daemonize("/tmp/.lwsts-lock")) */
+/* 	{ */
+/* 		fprintf(stderr, "Failed to daemonize\n"); */
+/* 		return 1; */
+/* 	} */
+/*  */
+/* 	#<{(| We will only try to log things according to our debug_level |)}># */
+/* 	setlogmask(LOG_UPTO (LOG_DEBUG)); */
+/* 	openlog("lwsts", rmpg->options->syslog_options, LOG_DAEMON); */
+/*  */
+/* 	#<{(| Tell the library what debug level to emit and to send it to syslog |)}># */
+/* 	lws_set_log_level(debug_level, lwsl_emit_syslog); */
+/*  */
+/* 	#<{(| rmpg->info->iface = rmpg->options->iface; |)}># */
+/* 	#<{(| rmpg->info->protocols = rmpg->options->protocols; |)}># */
+/*     #<{(|  |)}># */
+/* 	#<{(| #<{(| LWS extensions |)}># |)}># */
+/* 	#<{(| rmpg->info->extensions = lwss_get_internal_extensions(); |)}># */
+/*  */
+/* 	#<{(| !FIXME |)}># */
+/* 	#<{(| if (rmpg->options->resource_path && !rmpg->options->cert_path) { |)}># */
+/* 	#<{(| 	sprintf( |)}># */
+/* 	#<{(| 		rmpg->options->cert_path, |)}># */
+/* 	#<{(| 		"%s/libwebsockets-test-server.pem", |)}># */
+/* 	#<{(| 		resource_path |)}># */
+/* 	#<{(| 	); |)}># */
+/* 	#<{(| } |)}># */
+/* 	#<{(| if (strlen(resource_path) > sizeof(key_path) - 32) |)}># */
+/* 	#<{(| { |)}># */
+/* 	#<{(| 	lwsl_err("resource path too long\n"); |)}># */
+/* 	#<{(| 	return -1; |)}># */
+/* 	#<{(| } |)}># */
+/* 	#<{(| sprintf( |)}># */
+/* 	#<{(| 	key_path, |)}># */
+/* 	#<{(| 	"%s/libwebsockets-test-server.key.pem", |)}># */
+/* 	#<{(| 	resource_path |)}># */
+/* 	#<{(| ); |)}># */
+/*     #<{(|  |)}># */
+/* 	#<{(| rmpg->info->ssl_cert_filepath = cert_path; |)}># */
+/* 	#<{(| rmpg->info->ssl_private_key_filepath = key_path; |)}># */
+/* 	#<{(| rmpg->info->gid = -1; |)}># */
+/* 	#<{(| rmpg->info->uid = -1; |)}># */
+/* 	#<{(| rmpg->info->options = opts; |)}># */
+/*  */
+/* 	context = lwss_create_context(&info); */
+/* 	if (!context) */
+/* 	{ */
+/* 		*res = rmpg_err("Rampage failed to init lws context.\n"); */
+/* 		goto context_init_fail; */
+/* 	} */
+/*  */
+/* 	lwss_context_destroy(context); */
+/* 	lwsl_notice("Rampage exited cleanly.\n"); */
+/* 	destroy_python(); */
+/*  */
+/* context_init_fail: */
+/* 	return NULL; */
+/* 	return rmpg; */
 }
