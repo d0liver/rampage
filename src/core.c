@@ -104,24 +104,28 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
 
-	debug("Received: %s\n", (char *) in);
-	debug("Remaining: %d\n", (int) remaining);
+	printf("Received: %s\n", (char *) in);
+	printf("Remaining: %d\n", (int) remaining);
 
 	/* Message is finished. */
 	if (!remaining && lws_is_final_fragment(wsi))
 	{
 		char *buff;
 
-		if(!(buff = malloc(sess->pending->bytes)))
+		printf("Try to allocate buff: %ld\n", sess->pending->bytes + len);
+		/* Allocate a buffer to assemble the full message into */
+		if(!(buff = malloc(sess->pending->bytes + len)))
 			return -1;
 
 		sess->pending->append(sess->pending, in, len);
+		printf("Attempt to assemble the message.\n");
 		/* Assemble the whole message */
 		sess->pending->assemble(
 			sess->pending,
-			sess->pending->tail,
+			sess->pending->head,
 			buff
 		);
+		printf("Prune now unused nodes.\n");
 		/* This will also free up the previous payloads attached to the list */
 		sess->pending->prune(sess->pending, sess->pending->tail);
 
@@ -130,6 +134,7 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 		 * (like send it to a channel for other users to look at).
          */
 		/* event_mgr->handle(buff); */
+		printf("Assembled message for event manager: %s\n", buff);
 	}
 	/* Only got a partial message. */
 	else
@@ -137,9 +142,11 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 }
 
 static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
-	/* TODO: Check for OOM */
+	printf("Initializing session...\n");
 	/* Initialize the world channel */
 	sess->ch_mgr = init_channel_manager();
+	sess->pending = linked_list_init();
+	printf("Finished initializing session...\n");
 
 	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
 }
@@ -158,12 +165,12 @@ static int callback_lws_rmpg (
 	{
 
 		case LWS_CALLBACK_ESTABLISHED:
-			debug("Connection established\n");
+			printf("Connection established\n");
 			init(wsi, session, in, len);
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
-			debug("Cleaning up\n");
+			printf("Cleaning up\n");
 			break;
 
 		case LWS_CALLBACK_RECEIVE:
@@ -305,6 +312,7 @@ struct Rmpg *init_rampage(int argc, char **argv)
 
 	parse_opts(argc, argv);
 
+	printf("Rampage initialized, debugging...\n");
     /*
 	 * Do the central poll loop.
 	 * Negative statuses from libwebsockets indicate an error.

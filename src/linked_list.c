@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "linked_list.h"
@@ -20,13 +21,18 @@ static struct Node *empty_node(void) {
 /* Assemble from n through lst->tail (exclusive) into buff (buff provided
  * should be large enough to fit the contents). */
 static void assemble(struct LinkedList *lst, struct Node *n, char *buff) {
-	while ((n = n->next) != lst->tail)
+	while (n != lst->tail) {
+		printf("Payload: %s\n", n->payload);
+		printf("Payload size: %ld\n", n->payload_size);
 		buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
+		n = n->next;
+	}
 }
 
 /* Destroy the node n and return its next elem */
 static inline struct Node *destroy_node(struct Node *n) {
 	struct Node *next = n->next;
+	printf("Freeing payload: %s\n", n->payload);
 	free(n->payload);
 	free(n);
 
@@ -61,15 +67,16 @@ static struct Node *append(struct LinkedList *lst, char *payload, long psize) {
 	if (!(empt = empty_node()))
 		return NULL;
 
-	/* Fill out the empty node. */
-	lst->tail->payload = payload;
+	/* Fill out the node that's currently empty (our new node) */
+	lst->tail->payload = malloc(psize);
+	memcpy(lst->tail->payload, payload, psize);
 	lst->tail->payload_size = psize;
 	lst->tail->next = empt;
 
 	/* Now, move the tail to the new empty node */
 	lst->tail = empt;
 
-	/* Increase the by count */
+	/* Increase the byte count */
 	lst->bytes += psize;
 
 	return OK;
