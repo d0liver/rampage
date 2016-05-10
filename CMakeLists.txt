@@ -23,12 +23,12 @@ include_directories("src")
 
 # Add source files
 file(GLOB_RECURSE RAMPAGE_SRC ${PROJECT_SOURCE_DIR}/src/*.c)
-find_package(PythonLibs REQUIRED)
-include_directories(${PYTHON_INCLUDE_DIRS})
+# find_package(PythonLibs REQUIRED)
+# include_directories(${PYTHON_INCLUDE_DIRS})
 
 add_library(rampage SHARED 
 	${RAMPAGE_SRC} 
-	rampage.def
+	# rampage.def
 )
 
 set_target_properties(rampage PROPERTIES

@@ -6,5 +6,5 @@ includedir=${prefix}/include
 Name: Rampage
 Description: Minimalistic websockets server framework
 Version: @VERSION@
-Libs: -L${libdir} -lrampage -ljansson -lwebsockets `pkg-config python2.7 --cflags --libs`
+Libs: -L${libdir} -lrampage -ljansson -lwebsockets
 Cflags: -I${includedir}
