@@ -77,7 +77,7 @@ enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
      */
 	lst->assemble(lst, handle->head, buff);
 
-	bytes_written = lwss_write (wsi, buff, lst->bytes, LWS_WRITE_TEXT);
+	bytes_written = lws_write (wsi, buff, lst->bytes, LWS_WRITE_TEXT);
 
 	if (bytes_written < 0)
 		return ERROR_WRITING_TO_SOCKET;

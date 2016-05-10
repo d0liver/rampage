@@ -20,10 +20,46 @@
 #include "channel_manager.h"
 #include "session.h"
 
+static int callback_http(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
+static int callback_lws_rmpg(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
+
+static struct libwebsocket_context *context;
+static lws_protocols protocols[] = {
+	/* first protocol must always be HTTP handler */
+	{
+		"http-only",		/* name */
+		callback_http,		/* callback */
+		0,	/* per_session_data_size */
+		0,	/* max frame size / rx buffer */
+	},
+	{
+		"lws-rmpg-protocol",
+		callback_lws_rmpg,
+		sizeof(struct Session),
+		65536,
+	},
+	{ NULL, NULL, 0, 0 } /* terminator */
+};
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
 static struct ChannelManager channel_mgr;
 static struct Channel *world;
+static struct lws_context_creation_info info;
+static char *resource_path;
+static struct option long_opts[] = {
+	{ "help",	no_argument,		NULL, 'h' },
+	{ "debug",	required_argument,	NULL, 'd' },
+	{ "port",	required_argument,	NULL, 'p' },
+	{ "ssl",	no_argument,		NULL, 's' },
+	{ "allow-non-ssl",	no_argument,		NULL, 'a' },
+	{ "interface",  required_argument,	NULL, 'i' },
+	{ "closetest",  no_argument,		NULL, 'c' },
+	{ "libev",  no_argument,		NULL, 'e' },
+	{ "daemonize", 	no_argument,		NULL, 'D' },
+	{ "resource_path", required_argument,		NULL, 'r' },
+	{ NULL, 0, 0, 0 }
+};
+static const char *short_opts = "eci:hsap:d:Dr:";
 
 /*
  * TODO: Add in the http component (for serving static files).
@@ -50,7 +86,7 @@ static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 		sess->ch_handles[i].channel->flush(sess->ch_handles + i, wsi);
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
-		lwss_callback_on_writable(ctx, wsi);
+		lws_callback_on_writeable(ctx, wsi);
 		return 0;
 	}
 
@@ -63,7 +99,7 @@ static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 }
 
 static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
-	const size_t remaining = lwsss_remaining_packet_payload(wsi);
+	const size_t remaining = lws_remaining_packet_payload(wsi);
 
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
@@ -72,7 +108,7 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	debug("Remaining: %d\n", (int) remaining);
 
 	/* Message is finished. */
-	if (!remaining && lwss_is_final_fragment(wsi))
+	if (!remaining && lws_is_final_fragment(wsi))
 	{
 		char *buff;
 
@@ -142,24 +178,6 @@ static int callback_lws_rmpg (
 	return 0;
 }
 
-/* list of supported protocols and callbacks */
-static lws_protocols protocols[] = {
-	/* first protocol must always be HTTP handler */
-	{
-		"http-only",		/* name */
-		callback_http,		/* callback */
-		0,	/* per_session_data_size */
-		0,	/* max frame size / rx buffer */
-	},
-	{
-		"lws-rmpg-protocol",
-		callback_lws_rmpg,
-		sizeof(struct Session),
-		65536,
-	},
-	{ NULL, NULL, 0, 0 } /* terminator */
-};
-
 int rmpg_main_loop(struct Rmpg *rmpg, lws_ctx *ctx) {
 	short int status = 0;
 	while (status >= 0 && !force_exit)
@@ -183,89 +201,118 @@ int rmpg_main_loop(struct Rmpg *rmpg, lws_ctx *ctx) {
 		 * the number of ms in the second argument.
 		 */
 
-		status = lwss_service(ctx, 50);
+		status = lws_service(ctx, 50);
 	}
 }
 
-struct Rmpg *rmpg_init(void)
+void parse_opts(int argc, char **argv) {
+	char cert_path[1024], key_path[1024], interface_name[128] = {'\0'};
+	int n = 0, use_ssl = 0, opts = 0;
+	const char *iface = NULL;
+	int syslog_options = LOG_PID | LOG_PERROR;
+	int debug_level = 7;
+	int daemonize = 0;
+
+	info.port = 7681;
+
+	do {
+		n = getopt_long(argc, argv, short_opts, long_opts, NULL);
+
+		switch (n) {
+			case 'e':
+				opts |= LWS_SERVER_OPTION_LIBEV;
+				break;
+			case 'D':
+				daemonize = 1;
+				break;
+			case 'd':
+				debug_level = atoi(optarg);
+				break;
+			case 's':
+				use_ssl = 1;
+				break;
+			case 'a':
+				opts |= LWS_SERVER_OPTION_ALLOW_NON_SSL_ON_SSL_PORT;
+				break;
+			case 'p':
+				info.port = atoi(optarg);
+				break;
+			case 'i':
+				strncpy(interface_name, optarg, sizeof interface_name);
+				interface_name[(sizeof interface_name) - 1] = '\0';
+				iface = interface_name;
+				break;
+			case 'r':
+				resource_path = optarg;
+				printf("Setting resource path to \"%s\"\n", resource_path);
+				break;
+			case 'h':
+				fprintf(stderr, "Usage: test-server "
+						"[--port=<p>] [--ssl] "
+						"[-d <log bitfield>] "
+						"[--resource_path <path>]\n");
+				exit(1);
+		}
+	} while (n >= 0);
+
+	/* signal(SIGINT, sighandler); */
+
+	/* we will only try to log things according to our debug_level */
+	setlogmask(LOG_UPTO (LOG_DEBUG));
+	openlog("lwsts", syslog_options, LOG_DAEMON);
+
+	/* tell the library what debug level to emit and to send it to syslog */
+	lws_set_log_level(debug_level, lwsl_emit_syslog);
+
+	lwsl_notice("libwebsockets test server - "
+			"(C) Copyright 2010-2015 Andy Green <andy@warmcat.com> - "
+			"licensed under LGPL2.1\n");
+
+	printf("Using resource path \"%s\"\n", resource_path);
+
+	info.iface = iface;
+	info.protocols = protocols;
+	info.extensions = libwebsocket_get_internal_extensions();
+	if (!use_ssl) {
+		info.ssl_cert_filepath = NULL;
+		info.ssl_private_key_filepath = NULL;
+	}
+	else {
+		if (strlen(resource_path) > sizeof(cert_path) - 32)
+			lwsl_err("resource path too long\n");
+		sprintf(cert_path, "%s/libwebsockets-test-server.pem",
+				resource_path);
+		if (strlen(resource_path) > sizeof(key_path) - 32)
+			lwsl_err("resource path too long\n");
+		sprintf(key_path, "%s/libwebsockets-test-server.key.pem",
+				resource_path);
+
+		info.ssl_cert_filepath = cert_path;
+		info.ssl_private_key_filepath = key_path;
+	}
+	info.gid = -1;
+	info.uid = -1;
+	info.options = opts;
+
+	context = libwebsocket_create_context(&info);
+	if (context == NULL)
+		lwsl_err("libwebsocket init failed\n");
+}
+
+struct Rmpg *init_rampage(int argc, char **argv)
 {
-/* 	struct Rmpg *rmpg = malloc(sizeof(struct Rmpg)); */
-/* 	rmpg->lws_context_creation_info = */
-/* 		malloc(sizeof(lws_context_creation_info)); */
-/* 	memset(&info, 0, sizeof(info)); */
-/* 	info.port = 80; */
-/* 	#<{(| Init options and set them to NULL |)}># */
-/* 	rmpg->options = malloc(sizeof(struct Options)); */
-/* 	memset(rmpg->options, 0, sizeof(rmpg->options)); */
-/* 	rmpg->options->use_ssl = 1; */
-/* 	rmpg->options->syslog_options = LOG_PID | LOG_PERROR; */
-/*  */
-/* 	rmpg->options->debug_level = LLL_ERR | LLL_WARN | LLL_NOTICE; */
-/* 	rmpg->options->daemonize = 0; */
-/*  */
-/* 	init_python(argc, argv); */
-/*  */
-/* 	#<{(| */
-/* 	 * Normally lock path would be /var/lock/lwsts or similar, to simplify */
-/* 	 * getting started without having to take care about permissions or running */
-/* 	 * as root, set to /tmp/.lwsts-lock */
-/* 	 |)}># */
-/* 	if (daemonize && lws_daemonize("/tmp/.lwsts-lock")) */
-/* 	{ */
-/* 		fprintf(stderr, "Failed to daemonize\n"); */
-/* 		return 1; */
-/* 	} */
-/*  */
-/* 	#<{(| We will only try to log things according to our debug_level |)}># */
-/* 	setlogmask(LOG_UPTO (LOG_DEBUG)); */
-/* 	openlog("lwsts", rmpg->options->syslog_options, LOG_DAEMON); */
-/*  */
-/* 	#<{(| Tell the library what debug level to emit and to send it to syslog |)}># */
-/* 	lws_set_log_level(debug_level, lwsl_emit_syslog); */
-/*  */
-/* 	#<{(| rmpg->info->iface = rmpg->options->iface; |)}># */
-/* 	#<{(| rmpg->info->protocols = rmpg->options->protocols; |)}># */
-/*     #<{(|  |)}># */
-/* 	#<{(| #<{(| LWS extensions |)}># |)}># */
-/* 	#<{(| rmpg->info->extensions = lwss_get_internal_extensions(); |)}># */
-/*  */
-/* 	#<{(| !FIXME |)}># */
-/* 	#<{(| if (rmpg->options->resource_path && !rmpg->options->cert_path) { |)}># */
-/* 	#<{(| 	sprintf( |)}># */
-/* 	#<{(| 		rmpg->options->cert_path, |)}># */
-/* 	#<{(| 		"%s/libwebsockets-test-server.pem", |)}># */
-/* 	#<{(| 		resource_path |)}># */
-/* 	#<{(| 	); |)}># */
-/* 	#<{(| } |)}># */
-/* 	#<{(| if (strlen(resource_path) > sizeof(key_path) - 32) |)}># */
-/* 	#<{(| { |)}># */
-/* 	#<{(| 	lwsl_err("resource path too long\n"); |)}># */
-/* 	#<{(| 	return -1; |)}># */
-/* 	#<{(| } |)}># */
-/* 	#<{(| sprintf( |)}># */
-/* 	#<{(| 	key_path, |)}># */
-/* 	#<{(| 	"%s/libwebsockets-test-server.key.pem", |)}># */
-/* 	#<{(| 	resource_path |)}># */
-/* 	#<{(| ); |)}># */
-/*     #<{(|  |)}># */
-/* 	#<{(| rmpg->info->ssl_cert_filepath = cert_path; |)}># */
-/* 	#<{(| rmpg->info->ssl_private_key_filepath = key_path; |)}># */
-/* 	#<{(| rmpg->info->gid = -1; |)}># */
-/* 	#<{(| rmpg->info->uid = -1; |)}># */
-/* 	#<{(| rmpg->info->options = opts; |)}># */
-/*  */
-/* 	context = lwss_create_context(&info); */
-/* 	if (!context) */
-/* 	{ */
-/* 		*res = rmpg_err("Rampage failed to init lws context.\n"); */
-/* 		goto context_init_fail; */
-/* 	} */
-/*  */
-/* 	lwss_context_destroy(context); */
-/* 	lwsl_notice("Rampage exited cleanly.\n"); */
-/* 	destroy_python(); */
-/*  */
-/* context_init_fail: */
-/* 	return NULL; */
-/* 	return rmpg; */
+	int status = 0;
+
+	parse_opts(argc, argv);
+
+    /*
+	 * Do the central poll loop.
+	 * Negative statuses from libwebsockets indicate an error.
+     */
+	while (status >= 0 && !force_exit)
+		status = libwebsocket_service(context, /* Timeout */ 50);
+
+	/* Cleanup */
+	libwebsocket_context_destroy(context);
+	lwsl_notice("Rampage exited cleanly\n");
 }
