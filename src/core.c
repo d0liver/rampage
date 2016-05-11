@@ -22,6 +22,7 @@
 
 static int callback_http(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
 static int callback_lws_rmpg(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
+static struct Channel *world;
 
 static struct libwebsocket_context *context;
 static lws_protocols protocols[] = {
@@ -185,33 +186,6 @@ static int callback_lws_rmpg (
 	return 0;
 }
 
-int rmpg_main_loop(struct Rmpg *rmpg, lws_ctx *ctx) {
-	short int status = 0;
-	while (status >= 0 && !force_exit)
-	{
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-
-		/*
-		 * This provokes the LWS_CALLBACK_SERVER_WRITEABLE for every
-		 * live websocket connection using the DUMB_INCREMENT protocol,
-		 * as soon as it can take more packets (usually immediately)
-		 */
-
-		/*
-		 * If libwebsockets sockets are all we care about,
-		 * you can use this api which takes care of the poll()
-		 * and looping through finding who needed service.
-		 *
-		 * If no socket needs service, it'll return anyway after
-		 * the number of ms in the second argument.
-		 */
-
-		status = lws_service(ctx, 50);
-	}
-}
-
 void parse_opts(int argc, char **argv) {
 	char cert_path[1024], key_path[1024], interface_name[128] = {'\0'};
 	int n = 0, use_ssl = 0, opts = 0;
@@ -306,13 +280,18 @@ void parse_opts(int argc, char **argv) {
 		lwsl_err("libwebsocket init failed\n");
 }
 
-struct Rmpg *init_rampage(int argc, char **argv)
+void init_rampage(int argc, char **argv)
 {
 	int status = 0;
 
 	parse_opts(argc, argv);
 
 	printf("Rampage initialized, debugging...\n");
+
+	if(!(world = init_channel())) {
+		fprintf(stderr, "Couldn't initialize world channel\n");
+		return NULL;
+	}
     /*
 	 * Do the central poll loop.
 	 * Negative statuses from libwebsockets indicate an error.
