@@ -10,7 +10,7 @@ int init_session(
 	struct lwss *wsi,
 	void *in, size_t len
 ) {
-	if(!(sess->pending = linked_list_init()))
+	if(!(sess->pending = message_q_init()))
 		return -1;
 
 	debug("Initialized session\n");

@@ -143,7 +143,7 @@ struct Channel *init_channel(void) {
 
 	/* Data */
 	ch->name = NULL;
-	if(!(ch->msg_q = linked_list_init())) {
+	if(!(ch->msg_q = message_q_init())) {
 		free(ch);
 		return NULL;
 	}

@@ -154,7 +154,7 @@ static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	sess->num_ch_handles = 1;
 
 	/* Initialize our pending list */
-	sess->pending = linked_list_init();
+	sess->pending = message_q_init();
 	debug("Finished initializing session...\n");
 
 	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");

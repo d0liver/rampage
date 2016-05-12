@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "linked_list.h"
+#include "message_q.h"
 
 /*********** Private Utils ***********/
 static struct Node *empty_node(void) {
@@ -95,7 +95,7 @@ static void append_list(struct MessageQ *msg_q, struct MessageQ *append) {
 	msg_q->bytes += append->bytes;
 }
 
-struct MessageQ *linked_list_init() {
+struct MessageQ *message_q_init() {
 	struct MessageQ *msg_q;
 	/* We use an empty node as the head so that way when we hand out references
 	 * to the node the references will be correct whenever the node is

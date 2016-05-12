@@ -25,7 +25,7 @@ struct MessageQ {
 	struct Node *head, *tail;
 };
 
-struct MessageQ *linked_list_init();
+struct MessageQ *message_q_init();
 
 #define LINKED_LIST_H
 #endif

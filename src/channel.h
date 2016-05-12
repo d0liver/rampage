@@ -3,7 +3,7 @@
 #include <libwebsockets.h>
 
 #include "lws_short.h"
-#include "linked_list.h"
+#include "message_q.h"
 
 /* See "init_channel" */
 struct Channel {
