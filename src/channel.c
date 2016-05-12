@@ -31,7 +31,7 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 
 /* Assemble a message from the queue so that we can try to send it */
 static void check_free(struct Channel *ch) {
-	struct LinkedList *msg_q = ch->msg_q;
+	struct MessageQ *msg_q = ch->msg_q;
 	struct Node *n;
 	int i;
 
@@ -55,7 +55,7 @@ done:
 
 /* Assemble and flush messages to the user. */
 static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
-	struct LinkedList *msg_q = handle->channel->msg_q;
+	struct MessageQ *msg_q = handle->channel->msg_q;
 	int bytes_written, bytes_assemble;
 	char *buff;
 
@@ -117,7 +117,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize) {
 	/* The node to be added */
 	struct Node *n;
-	struct LinkedList *msg_q = handle->channel->msg_q;
+	struct MessageQ *msg_q = handle->channel->msg_q;
 
 	if(msg_q->append(msg_q, payload, psize))
 		return OUT_OF_MEM;
@@ -135,7 +135,7 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
  * a list of channels that they receive events from and can publish events to.
  */
 struct Channel *init_channel(void) {
-	struct LinkedList *msg_q;
+	struct MessageQ *msg_q;
 	struct Channel *ch;
 
 	if(!(ch = malloc(sizeof (struct Channel))))

@@ -20,7 +20,7 @@ static struct Node *empty_node(void) {
 
 /* Assemble from n through msg_q->tail (exclusive) into buff (buff provided
  * should be large enough to fit the contents). */
-static long assemble(struct LinkedList *msg_q, struct Node *n, char *buff) {
+static long assemble(struct MessageQ *msg_q, struct Node *n, char *buff) {
 	long bytes = 0;
 
 	while (n != msg_q->tail) {
@@ -36,7 +36,7 @@ static long assemble(struct LinkedList *msg_q, struct Node *n, char *buff) {
 }
 
 /* Destroy the node n and return its next elem */
-static inline struct Node *destroy_node(struct LinkedList *msg_q, struct Node *n) {
+static inline struct Node *destroy_node(struct MessageQ *msg_q, struct Node *n) {
 	struct Node *next = n->next;
 	debug("Freeing payload: %s\n", n->payload);
 	msg_q->bytes -= n->payload_size;
@@ -48,7 +48,7 @@ static inline struct Node *destroy_node(struct LinkedList *msg_q, struct Node *n
 
 /*********** Public API ***********/
 /* Remove from msg_q->head through n (exclusive) */
-static void prune(struct LinkedList *msg_q, struct Node *n) {
+static void prune(struct MessageQ *msg_q, struct Node *n) {
 	struct Node *cur = msg_q->head;
 	msg_q->head = n;
 
@@ -68,7 +68,7 @@ static void prune(struct LinkedList *msg_q, struct Node *n) {
  *
  * Returns a pointer to the new empty node (new tail) or NULL if unsuccessful.
  */
-static struct Node *append(struct LinkedList *msg_q, char *payload, long psize) {
+static struct Node *append(struct MessageQ *msg_q, char *payload, long psize) {
 	struct Node *empt;
 
 	if (!(empt = empty_node()))
@@ -90,19 +90,19 @@ static struct Node *append(struct LinkedList *msg_q, char *payload, long psize) 
 }
 
 /* Append another list onto the end of this one. */
-static void append_list(struct LinkedList *msg_q, struct LinkedList *append) {
+static void append_list(struct MessageQ *msg_q, struct MessageQ *append) {
 	msg_q->tail = append->head;
 	msg_q->bytes += append->bytes;
 }
 
-struct LinkedList *linked_list_init() {
-	struct LinkedList *msg_q;
+struct MessageQ *linked_list_init() {
+	struct MessageQ *msg_q;
 	/* We use an empty node as the head so that way when we hand out references
 	 * to the node the references will be correct whenever the node is
 	 * populated */
 	struct Node *empt;
 
-	if(!(msg_q = malloc(sizeof (struct LinkedList))))
+	if(!(msg_q = malloc(sizeof (struct MessageQ))))
 		return NULL;
 
 	if (!(empt = empty_node())) {

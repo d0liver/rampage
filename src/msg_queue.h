@@ -11,12 +11,12 @@ struct Node {
 	char *payload;
 };
 
-struct LinkedList {
-	long (* assemble)(struct LinkedList *msg_q, struct Node *n, char *buff);
-	void (* prune)(struct LinkedList *, struct Node *);
-	struct Node *(* append)(struct LinkedList *, char *, long);
-	void (* append_list)(struct LinkedList *, struct LinkedList *);
-	void (* destroy)(struct LinkedList *);
+struct MessageQ {
+	long (* assemble)(struct MessageQ *msg_q, struct Node *n, char *buff);
+	void (* prune)(struct MessageQ *, struct Node *);
+	struct Node *(* append)(struct MessageQ *, char *, long);
+	void (* append_list)(struct MessageQ *, struct MessageQ *);
+	void (* destroy)(struct MessageQ *);
 
 	/* Each entry in the linked list points to a buffer containing the message
 	 * payload. If we want to limit the total amount that is stored within the
@@ -25,7 +25,7 @@ struct LinkedList {
 	struct Node *head, *tail;
 };
 
-struct LinkedList *linked_list_init();
+struct MessageQ *linked_list_init();
 
 #define LINKED_LIST_H
 #endif

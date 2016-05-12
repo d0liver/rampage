@@ -8,7 +8,7 @@
 /* See "init_channel" */
 struct Channel {
 	char *name;
-	struct LinkedList *msg_q;
+	struct MessageQ *msg_q;
 
     /*
 	 * We keep a list of the handles that we have issued so that we know when
