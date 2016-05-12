@@ -77,7 +77,7 @@ static int callback_http(
 static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	int i;
 
-	printf("Writeable, num ch handles: %d\n", sess->num_ch_handles);
+	debug("Writeable, num ch handles: %d\n", sess->num_ch_handles);
     /*
 	 * Send all of the messages that are waiting in each channel (from everyone
 	 * else to us)
@@ -104,41 +104,43 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
 
-	printf("Received: %s\n", (char *) in);
-	printf("Remaining: %d\n", (int) remaining);
+	debug("Received: %s\n", (char *) in);
+	debug("Remaining: %d\n", (int) remaining);
 
 	/* Message is finished. */
 	if (!remaining && lws_is_final_fragment(wsi))
 	{
 		char *buff;
 
-		printf("Try to allocate buff: %ld\n", sess->pending->bytes + len);
 		/* Allocate a buffer to assemble the full message into */
 		if(!(buff = malloc(sess->pending->bytes + len)))
 			return -1;
 
 		sess->pending->append(sess->pending, in, len);
-		printf("Attempt to assemble the message.\n");
+		debug("Attempt to assemble the message.\n");
 		/* Assemble the whole message */
 		sess->pending->assemble(
 			sess->pending,
 			sess->pending->head,
 			buff
 		);
-		printf("Prune now unused nodes.\n");
+		debug("Prune now unused nodes.\n");
 
         /*
 		 * Do useful things! We have a message now and we can do things with it
 		 * (like send it to a channel for other users to look at).
          */
 		/* event_mgr->handle(buff); */
-		printf("Assembled message for event manager: %s\n", buff);
-		printf("Sending message back on world channel.\n");
+		debug("Assembled message for event manager: %s\n", buff);
+		debug("Sending message back on world channel.\n");
 		sess->ch_handles[0]->channel->snd(
 			sess->ch_handles[0], buff,
 			sess->pending->bytes
 		);
-		printf("Scheduling write callback.\n");
+
+		/* TODO: Let the channel know about the wsi and the context and then
+		 * have it handle this */
+		debug("Scheduling write callback.\n");
 		libwebsocket_callback_on_writable(context, wsi);
 
         /*
@@ -154,7 +156,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 }
 
 static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
-	printf("Initializing session...\n");
+	debug("Initializing session...\n");
 	/* Initialize the world channel */
 	sess->ch_handles = malloc(sizeof(struct ChannelHandle *));
 	sess->ch_handles[0] = world->handle(world);
@@ -162,7 +164,7 @@ static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 
 	/* Initialize our pending list */
 	sess->pending = linked_list_init();
-	printf("Finished initializing session...\n");
+	debug("Finished initializing session...\n");
 
 	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
 }
@@ -180,12 +182,12 @@ static int callback_lws_rmpg (
 	switch (reason)
 	{
 		case LWS_CALLBACK_ESTABLISHED:
-			printf("Connection established\n");
+			debug("Connection established\n");
 			init(wsi, session, in, len);
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
-			printf("Cleaning up\n");
+			debug("Cleaning up\n");
 			break;
 
 		case LWS_CALLBACK_RECEIVE:
@@ -262,8 +264,6 @@ void parse_opts(int argc, char **argv) {
 	/* TODO: Include license/copyright info. */
 	lwsl_notice("Rampage websockets server.\n");
 
-	printf("Using resource path \"%s\"\n", resource_path);
-
 	info.iface = iface;
 	info.protocols = protocols;
 	info.extensions = libwebsocket_get_internal_extensions();
@@ -299,7 +299,7 @@ void init_rampage(int argc, char **argv)
 
 	parse_opts(argc, argv);
 
-	printf("Rampage initialized, debugging...\n");
+	debug("Rampage initialized, debugging...\n");
 
 	/* FIXME: What's the best recovery option here? */
 	if(!(world = init_channel())) {

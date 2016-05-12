@@ -24,8 +24,8 @@ static long assemble(struct LinkedList *lst, struct Node *n, char *buff) {
 	long bytes = 0;
 
 	while (n != lst->tail) {
-		printf("Payload: %s\n", n->payload);
-		printf("Payload size: %ld\n", n->payload_size);
+		debug("Payload: %s\n", n->payload);
+		debug("Payload size: %ld\n", n->payload_size);
 		if (buff)
 			buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
 		bytes += n->payload_size;
@@ -38,7 +38,7 @@ static long assemble(struct LinkedList *lst, struct Node *n, char *buff) {
 /* Destroy the node n and return its next elem */
 static inline struct Node *destroy_node(struct LinkedList *lst, struct Node *n) {
 	struct Node *next = n->next;
-	printf("Freeing payload: %s\n", n->payload);
+	debug("Freeing payload: %s\n", n->payload);
 	lst->bytes -= n->payload_size;
 	free(n->payload);
 	free(n);

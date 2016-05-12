@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <libwebsockets.h>
 
 #include "channel.h"
 
@@ -66,7 +67,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	if(!bytes_assemble)
 		return OK;
 
-	printf("Bytes assemble: %d\n", bytes_assemble);
+	debug("Bytes assemble: %d\n", bytes_assemble);
 
 	if(!(buff = malloc(
 		bytes_assemble +
@@ -86,7 +87,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * nice, maybe, if we didn't need to move this data to send it.
      */
 	lst->assemble(lst, handle->head, buff);
-	printf("Assembled send payload: %s\n", buff);
+	debug("Assembled send payload: %s\n", buff);
 
 	bytes_written = lws_write (wsi, buff, bytes_assemble, LWS_WRITE_TEXT);
 
