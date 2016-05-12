@@ -18,12 +18,12 @@ static struct Node *empty_node(void) {
 	return empty;
 }
 
-/* Assemble from n through lst->tail (exclusive) into buff (buff provided
+/* Assemble from n through msg_q->tail (exclusive) into buff (buff provided
  * should be large enough to fit the contents). */
-static long assemble(struct LinkedList *lst, struct Node *n, char *buff) {
+static long assemble(struct LinkedList *msg_q, struct Node *n, char *buff) {
 	long bytes = 0;
 
-	while (n != lst->tail) {
+	while (n != msg_q->tail) {
 		debug("Payload: %s\n", n->payload);
 		debug("Payload size: %ld\n", n->payload_size);
 		if (buff)
@@ -36,10 +36,10 @@ static long assemble(struct LinkedList *lst, struct Node *n, char *buff) {
 }
 
 /* Destroy the node n and return its next elem */
-static inline struct Node *destroy_node(struct LinkedList *lst, struct Node *n) {
+static inline struct Node *destroy_node(struct LinkedList *msg_q, struct Node *n) {
 	struct Node *next = n->next;
 	debug("Freeing payload: %s\n", n->payload);
-	lst->bytes -= n->payload_size;
+	msg_q->bytes -= n->payload_size;
 	free(n->payload);
 	free(n);
 
@@ -47,12 +47,12 @@ static inline struct Node *destroy_node(struct LinkedList *lst, struct Node *n) 
 }
 
 /*********** Public API ***********/
-/* Remove from lst->head through n (exclusive) */
-static void prune(struct LinkedList *lst, struct Node *n) {
-	struct Node *cur = lst->head;
-	lst->head = n;
+/* Remove from msg_q->head through n (exclusive) */
+static void prune(struct LinkedList *msg_q, struct Node *n) {
+	struct Node *cur = msg_q->head;
+	msg_q->head = n;
 
-	while(n != (cur = destroy_node(lst, cur)));
+	while(n != (cur = destroy_node(msg_q, cur)));
 }
 
 /*
@@ -68,57 +68,57 @@ static void prune(struct LinkedList *lst, struct Node *n) {
  *
  * Returns a pointer to the new empty node (new tail) or NULL if unsuccessful.
  */
-static struct Node *append(struct LinkedList *lst, char *payload, long psize) {
+static struct Node *append(struct LinkedList *msg_q, char *payload, long psize) {
 	struct Node *empt;
 
 	if (!(empt = empty_node()))
 		return NULL;
 
 	/* Fill out the node that's currently empty (our new node) */
-	lst->tail->payload = malloc(psize);
-	memcpy(lst->tail->payload, payload, psize);
-	lst->tail->payload_size = psize;
-	lst->tail->next = empt;
+	msg_q->tail->payload = malloc(psize);
+	memcpy(msg_q->tail->payload, payload, psize);
+	msg_q->tail->payload_size = psize;
+	msg_q->tail->next = empt;
 
 	/* Now, move the tail to the new empty node */
-	lst->tail = empt;
+	msg_q->tail = empt;
 
 	/* Increase the byte count */
-	lst->bytes += psize;
+	msg_q->bytes += psize;
 
 	return OK;
 }
 
 /* Append another list onto the end of this one. */
-static void append_list(struct LinkedList *lst, struct LinkedList *append) {
-	lst->tail = append->head;
-	lst->bytes += append->bytes;
+static void append_list(struct LinkedList *msg_q, struct LinkedList *append) {
+	msg_q->tail = append->head;
+	msg_q->bytes += append->bytes;
 }
 
 struct LinkedList *linked_list_init() {
-	struct LinkedList *lst;
+	struct LinkedList *msg_q;
 	/* We use an empty node as the head so that way when we hand out references
 	 * to the node the references will be correct whenever the node is
 	 * populated */
 	struct Node *empt;
 
-	if(!(lst = malloc(sizeof (struct LinkedList))))
+	if(!(msg_q = malloc(sizeof (struct LinkedList))))
 		return NULL;
 
 	if (!(empt = empty_node())) {
-		free(lst);
+		free(msg_q);
 		return NULL;
 	}
 
-	lst->head = empt;
-	lst->tail = empt;
-	lst->bytes = 0;
+	msg_q->head = empt;
+	msg_q->tail = empt;
+	msg_q->bytes = 0;
 
 	/* Methods */
-	lst->assemble = assemble;
-	lst->prune  = prune;
-	lst->append = append;
-	lst->append_list = append_list;
+	msg_q->assemble = assemble;
+	msg_q->prune  = prune;
+	msg_q->append = append;
+	msg_q->append_list = append_list;
 
-	return lst;
+	return msg_q;
 }

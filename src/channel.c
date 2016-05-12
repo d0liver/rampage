@@ -23,7 +23,7 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 	 * and a private channel to the user. i.o.w. a channel is not on its own
 	 * enough to implement a chat room with history from before joining.
 	 */
-	handle->head = ch->lst->tail;
+	handle->head = ch->msg_q->tail;
 	handle->channel = ch;
 
 	return handle;
@@ -31,7 +31,7 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 
 /* Assemble a message from the queue so that we can try to send it */
 static void check_free(struct Channel *ch) {
-	struct LinkedList *lst = ch->lst;
+	struct LinkedList *msg_q = ch->msg_q;
 	struct Node *n;
 	int i;
 
@@ -43,24 +43,24 @@ static void check_free(struct Channel *ch) {
 	 * handle (actually the handle's head). Since data is appended on the end
 	 * everything before this handle will be unused now so it can be destroyed.
      */
-	for (n = lst->head; ; n = n->next)
+	for (n = msg_q->head; ; n = n->next)
 		for (i = 0; i < ch->num_handles; ++i)
 			if (n == ch->handles[i].head)
 				goto done;
 done:
 
 	/* Remove all of the old data that has been ready by everybody already. */
-	ch->lst->prune(ch->lst, n);
+	ch->msg_q->prune(ch->msg_q, n);
 }
 
 /* Assemble and flush messages to the user. */
 static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
-	struct LinkedList *lst = handle->channel->lst;
+	struct LinkedList *msg_q = handle->channel->msg_q;
 	int bytes_written, bytes_assemble;
 	char *buff;
 
 	/* Get the number of bytes for the buffer */
-	bytes_assemble = lst->assemble(lst, handle->head, NULL);
+	bytes_assemble = msg_q->assemble(msg_q, handle->head, NULL);
     /*
 	 * FIXME: Why are we getting callbacks when there are no messages to send?
      */
@@ -86,7 +86,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * shitty design). Maybe ideas in the future will be better? It would be
 	 * nice, maybe, if we didn't need to move this data to send it.
      */
-	lst->assemble(lst, handle->head, buff);
+	msg_q->assemble(msg_q, handle->head, buff);
 	debug("Assembled send payload: %s\n", buff);
 
 	bytes_written = lws_write (wsi, buff, bytes_assemble, LWS_WRITE_TEXT);
@@ -101,7 +101,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * The write was successful, we can go ahead and update our head
 	 * (indicating that we no longer need those nodes)
      */
-	handle->head = handle->channel->lst->tail;
+	handle->head = handle->channel->msg_q->tail;
 
     /*
 	 * There may be nodes that can be freed now (if we were the last one in the
@@ -117,9 +117,9 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize) {
 	/* The node to be added */
 	struct Node *n;
-	struct LinkedList *lst = handle->channel->lst;
+	struct LinkedList *msg_q = handle->channel->msg_q;
 
-	if(lst->append(lst, payload, psize))
+	if(msg_q->append(msg_q, payload, psize))
 		return OUT_OF_MEM;
 
 	return OK;
@@ -135,7 +135,7 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
  * a list of channels that they receive events from and can publish events to.
  */
 struct Channel *init_channel(void) {
-	struct LinkedList *lst;
+	struct LinkedList *msg_q;
 	struct Channel *ch;
 
 	if(!(ch = malloc(sizeof (struct Channel))))
@@ -143,7 +143,7 @@ struct Channel *init_channel(void) {
 
 	/* Data */
 	ch->name = NULL;
-	if(!(ch->lst = linked_list_init())) {
+	if(!(ch->msg_q = linked_list_init())) {
 		free(ch);
 		return NULL;
 	}
