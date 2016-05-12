@@ -3,11 +3,11 @@
 
 #include "event_mgr.h"
 
-/*
- * This is where we take assembled messages and do something useful with them
- * (like emit them into channels). Things above this level of abstraction
- * should have a fairly reasonable API to deal with.
- */
+void evt_mgr_on_raw(struct EventManager *evt_mgr, char *buff, size_t len) {
+}
 
-static void handle(char *msg) {
+void register_handler(
+	struct EventManager *evt_mgr,
+	struct EventHandler *handler
+) {
 }

@@ -131,17 +131,8 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 		 * (like send it to a channel for other users to look at).
          */
 		/* event_mgr->handle(buff); */
-		debug("Assembled message for event manager: %s\n", buff);
-		debug("Sending message back on world channel.\n");
-		sess->ch_handles[0]->channel->snd(
-			sess->ch_handles[0], buff,
-			sess->pending->bytes
-		);
-
-		/* TODO: Let the channel know about the wsi and the context and then
-		 * have it handle this */
-		debug("Scheduling write callback.\n");
-		libwebsocket_callback_on_writable(context, wsi);
+		debug("Assembled message, passing off to event manager.\n");
+		evt_mgr_on_raw(evt_mgr, buff, len);
 
         /*
 		 * This will also free up the previous payloads attached to the list.
