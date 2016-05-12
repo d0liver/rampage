@@ -12,7 +12,7 @@ struct Node {
 };
 
 struct LinkedList {
-	void (* assemble)(struct LinkedList *lst, struct Node *n, char *buff);
+	long (* assemble)(struct LinkedList *lst, struct Node *n, char *buff);
 	void (* prune)(struct LinkedList *, struct Node *);
 	struct Node *(* append)(struct LinkedList *, char *, long);
 	void (* append_list)(struct LinkedList *, struct LinkedList *);

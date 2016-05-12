@@ -4,8 +4,7 @@
 struct Session {
 	struct lwss *wsi;
 	/* The channels that this session is subscribed to */
-	struct ChannelHandle *ch_handles;
-	struct ChannelManager *ch_mgr;
+	struct ChannelHandle **ch_handles;
 	int num_ch_handles;
 	struct LinkedList *pending;
 };

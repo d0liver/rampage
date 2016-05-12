@@ -17,7 +17,6 @@
 #include "lws_short.h"
 #include "defs.h"
 #include "channel.h"
-#include "channel_manager.h"
 #include "session.h"
 
 static int callback_http(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
@@ -43,7 +42,6 @@ static lws_protocols protocols[] = {
 };
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
-static struct ChannelManager channel_mgr;
 static struct Channel *world;
 static struct lws_context_creation_info info;
 static char *resource_path;
@@ -79,12 +77,13 @@ static int callback_http(
 static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	int i;
 
+	printf("Writeable, num ch handles: %d\n", sess->num_ch_handles);
     /*
 	 * Send all of the messages that are waiting in each channel (from everyone
 	 * else to us)
      */
 	for (i = 0; i < sess->num_ch_handles; ++i)
-		sess->ch_handles[i].channel->flush(sess->ch_handles + i, wsi);
+		sess->ch_handles[i]->channel->flush(sess->ch_handles[i], wsi);
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
 		lws_callback_on_writeable(ctx, wsi);
@@ -99,7 +98,7 @@ static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	return 0;
 }
 
-static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
+static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, size_t len) {
 	const size_t remaining = lws_remaining_packet_payload(wsi);
 
 	/* TODO: When should we start dropping? */
@@ -127,8 +126,6 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 			buff
 		);
 		printf("Prune now unused nodes.\n");
-		/* This will also free up the previous payloads attached to the list */
-		sess->pending->prune(sess->pending, sess->pending->tail);
 
         /*
 		 * Do useful things! We have a message now and we can do things with it
@@ -136,6 +133,20 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
          */
 		/* event_mgr->handle(buff); */
 		printf("Assembled message for event manager: %s\n", buff);
+		printf("Sending message back on world channel.\n");
+		sess->ch_handles[0]->channel->snd(
+			sess->ch_handles[0], buff,
+			sess->pending->bytes
+		);
+		printf("Scheduling write callback.\n");
+		libwebsocket_callback_on_writable(context, wsi);
+
+        /*
+		 * This will also free up the previous payloads attached to the list.
+		 * NOTE: This _must_ come last because pruning also reduces the byte
+		 * count which we use before this.
+         */
+		sess->pending->prune(sess->pending, sess->pending->tail);
 	}
 	/* Only got a partial message. */
 	else
@@ -145,7 +156,11 @@ static int receive (lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	printf("Initializing session...\n");
 	/* Initialize the world channel */
-	sess->ch_mgr = init_channel_manager();
+	sess->ch_handles = malloc(sizeof(struct ChannelHandle *));
+	sess->ch_handles[0] = world->handle(world);
+	sess->num_ch_handles = 1;
+
+	/* Initialize our pending list */
 	sess->pending = linked_list_init();
 	printf("Finished initializing session...\n");
 
@@ -164,7 +179,6 @@ static int callback_lws_rmpg (
 
 	switch (reason)
 	{
-
 		case LWS_CALLBACK_ESTABLISHED:
 			printf("Connection established\n");
 			init(wsi, session, in, len);
@@ -175,7 +189,7 @@ static int callback_lws_rmpg (
 			break;
 
 		case LWS_CALLBACK_RECEIVE:
-			receive(wsi, session, in, len);
+			receive(wsi, ctx, session, in, len);
 		break;
 
 		case LWS_CALLBACK_SERVER_WRITEABLE:
@@ -245,9 +259,8 @@ void parse_opts(int argc, char **argv) {
 	/* tell the library what debug level to emit and to send it to syslog */
 	lws_set_log_level(debug_level, lwsl_emit_syslog);
 
-	lwsl_notice("libwebsockets test server - "
-			"(C) Copyright 2010-2015 Andy Green <andy@warmcat.com> - "
-			"licensed under LGPL2.1\n");
+	/* TODO: Include license/copyright info. */
+	lwsl_notice("Rampage websockets server.\n");
 
 	printf("Using resource path \"%s\"\n", resource_path);
 
@@ -288,9 +301,10 @@ void init_rampage(int argc, char **argv)
 
 	printf("Rampage initialized, debugging...\n");
 
+	/* FIXME: What's the best recovery option here? */
 	if(!(world = init_channel())) {
 		fprintf(stderr, "Couldn't initialize world channel\n");
-		return NULL;
+		exit(1);
 	}
     /*
 	 * Do the central poll loop.

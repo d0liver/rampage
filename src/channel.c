@@ -53,13 +53,23 @@ done:
 }
 
 /* Assemble and flush messages to the user. */
-enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
+static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	struct LinkedList *lst = handle->channel->lst;
-	int len, bytes_written;
+	int bytes_written, bytes_assemble;
 	char *buff;
 
+	/* Get the number of bytes for the buffer */
+	bytes_assemble = lst->assemble(lst, handle->head, NULL);
+    /*
+	 * FIXME: Why are we getting callbacks when there are no messages to send?
+     */
+	if(!bytes_assemble)
+		return OK;
+
+	printf("Bytes assemble: %d\n", bytes_assemble);
+
 	if(!(buff = malloc(
-		lst->bytes +
+		bytes_assemble +
 		LWS_SEND_BUFFER_PRE_PADDING +
 		LWS_SEND_BUFFER_POST_PADDING
 	)))
@@ -76,13 +86,14 @@ enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * nice, maybe, if we didn't need to move this data to send it.
      */
 	lst->assemble(lst, handle->head, buff);
+	printf("Assembled send payload: %s\n", buff);
 
-	bytes_written = lws_write (wsi, buff, lst->bytes, LWS_WRITE_TEXT);
+	bytes_written = lws_write (wsi, buff, bytes_assemble, LWS_WRITE_TEXT);
 
 	if (bytes_written < 0)
 		return ERROR_WRITING_TO_SOCKET;
 	/* FIXME: Maybe we should try again? */
-	else if (bytes_written < lst->bytes)
+	else if (bytes_written < bytes_assemble)
 		return ERROR_PARTIAL_WRITE;
 
     /*
@@ -95,8 +106,8 @@ enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * There may be nodes that can be freed now (if we were the last one in the
 	 * channel to use the nodes that we just released)
      */
-	check_free(handle->channel);
-	free(buff);
+	/* check_free(handle->channel); */
+	free(buff - LWS_SEND_BUFFER_PRE_PADDING);
 
 	return bytes_written;
 }
@@ -131,11 +142,10 @@ struct Channel *init_channel(void) {
 
 	/* Data */
 	ch->name = NULL;
-	if(linked_list_init(&lst)) {
+	if(!(ch->lst = linked_list_init())) {
 		free(ch);
 		return NULL;
 	}
-	ch->lst = lst;
 
 	/* Methods */
 	ch->handle = handle;

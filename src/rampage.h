@@ -1,1 +1,1 @@
-struct Rmpg *init_rampage(int argc, char **argv);
+void init_rampage(int argc, char **argv);

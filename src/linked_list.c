@@ -20,19 +20,26 @@ static struct Node *empty_node(void) {
 
 /* Assemble from n through lst->tail (exclusive) into buff (buff provided
  * should be large enough to fit the contents). */
-static void assemble(struct LinkedList *lst, struct Node *n, char *buff) {
+static long assemble(struct LinkedList *lst, struct Node *n, char *buff) {
+	long bytes = 0;
+
 	while (n != lst->tail) {
 		printf("Payload: %s\n", n->payload);
 		printf("Payload size: %ld\n", n->payload_size);
-		buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
+		if (buff)
+			buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
+		bytes += n->payload_size;
 		n = n->next;
 	}
+
+	return bytes;
 }
 
 /* Destroy the node n and return its next elem */
-static inline struct Node *destroy_node(struct Node *n) {
+static inline struct Node *destroy_node(struct LinkedList *lst, struct Node *n) {
 	struct Node *next = n->next;
 	printf("Freeing payload: %s\n", n->payload);
+	lst->bytes -= n->payload_size;
 	free(n->payload);
 	free(n);
 
@@ -45,7 +52,7 @@ static void prune(struct LinkedList *lst, struct Node *n) {
 	struct Node *cur = lst->head;
 	lst->head = n;
 
-	while(n != (cur = destroy_node(cur)));
+	while(n != (cur = destroy_node(lst, cur)));
 }
 
 /*
