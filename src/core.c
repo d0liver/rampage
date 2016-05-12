@@ -132,7 +132,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
          */
 		/* event_mgr->handle(buff); */
 		debug("Assembled message, passing off to event manager.\n");
-		evt_mgr_on_raw(evt_mgr, buff, len);
+		/* evt_mgr_on_raw(evt_mgr, buff, len); */
 
         /*
 		 * This will also free up the previous payloads attached to the list.

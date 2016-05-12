@@ -6,7 +6,8 @@ enum RmpgErr {
 	OUT_OF_MEM,
 	EMPTY_RESPONSE,
 	ERROR_WRITING_TO_SOCKET,
-	ERROR_PARTIAL_WRITE
+	ERROR_PARTIAL_WRITE,
+	ERROR_JSON_PARSE
 };
 
 void debug (const char *format, ...);
