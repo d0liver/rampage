@@ -297,6 +297,7 @@ void init_rampage(int argc, char **argv)
 	int status = 0;
 
 	parse_opts(argc, argv);
+	evt_mgr_init();
 
 	debug("Rampage initialized, debugging...\n");
 

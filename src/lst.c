@@ -3,6 +3,7 @@
  * generic things.
  */
 #include <stdlib.h>
+#include <string.h>
 
 #include "lst.h"
 
@@ -18,7 +19,7 @@ struct List *lst_init(int grow_by) {
 	return lst;
 }
 
-int lst_append(struct List *lst, void *elem, short int cp_size) {
+int lst_append(struct List *lst, void *elem, int cp_size) {
 	int size = (lst->num_elems + (lst->grow_by - 1)) & ~(lst->grow_by - 1);
 
     /*
@@ -40,7 +41,7 @@ int lst_append(struct List *lst, void *elem, short int cp_size) {
 			!lst->num_elems && !(lst->items = malloc(size)) ||
 			lst->num_elems && !(lst->items = realloc(lst->items, size))
 		)
-			goto bail
+			goto bail;
 	}
 
 	/* Add the new elem */

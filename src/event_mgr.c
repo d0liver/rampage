@@ -30,7 +30,7 @@ enum RmpgErr evt_mgr_on(const char *evt, void (*handle)(const char *)) {
 	map->evt = evt;
 	map->handle = handle;
 
-	lst_append(evt_maps, map);
+	lst_append(evt_maps, map, 0);
 
 	return OK;
 }
@@ -44,6 +44,7 @@ enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
 	json_error_t err;
 	char *payload, *type;
 
+	debug("Event manager received.\n");
 	if(!(root = json_loads(buff, 0, &err)))
 		return ERROR_JSON_PARSE;
 
@@ -55,6 +56,8 @@ enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
 	))
 		return ERROR_JSON_PARSE;
 
+	debug("Payload: %s\n", buff);
+
 	/* Call each event handler registered for the event. */
 	for (i = 0; i < evt_maps->num_elems; ++i) {
 		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
@@ -62,4 +65,6 @@ enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
 		if (!strcmp(map->evt, type))
 			map->handle(buff);
 	}
+
+	return OK;
 }

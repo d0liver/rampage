@@ -6,7 +6,7 @@ struct List {
 };
 
 struct List *lst_init(int grow_by);
-int lst_append(struct List *lst, void *elem);
+int lst_append(struct List *lst, void *elem, int cp_size);
 
 #define LST_H
 #endif
