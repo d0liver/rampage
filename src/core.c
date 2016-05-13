@@ -13,6 +13,7 @@
 #include <libwebsockets.h>
 
 /* Local includes */
+#include "event_mgr.h"
 #include "rampage.h"
 #include "lws_short.h"
 #include "defs.h"
@@ -59,6 +60,13 @@ static struct option long_opts[] = {
 	{ NULL, 0, 0, 0 }
 };
 static const char *short_opts = "eci:hsap:d:Dr:";
+
+/* This is the public api for registering an event handler with rampage */
+enum RmpgErr rmpg_on(const char *evt, void (*handle)(const char *)) {
+	evt_mgr_on(evt, handle);
+
+	return OK;
+}
 
 /*
  * TODO: Add in the http component (for serving static files).
@@ -132,7 +140,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
          */
 		/* event_mgr->handle(buff); */
 		debug("Assembled message, passing off to event manager.\n");
-		/* evt_mgr_on_raw(evt_mgr, buff, len); */
+		evt_mgr_receive(buff, len);
 
         /*
 		 * This will also free up the previous payloads attached to the list.

@@ -3,25 +3,42 @@
 #include <jansson.h>
 #include <string.h>
 
+#include "lst.h"
 #include "event_mgr.h"
 #include "err.h"
 
-void hello(char *payload) {
+struct EvtMap {
+	const char *evt;
+	void (*handle)(const char *);
+};
+
+static struct List *evt_maps;
+
+enum RmpgErr evt_mgr_init(void) {
+	if(!(evt_maps = lst_init(/* Grow by */ 4)))
+		return OUT_OF_MEM;
+
+	return OK;
 }
 
-struct EvtMap {
-	char *type;
-	void (*handle)(char *payload);
-};
+enum RmpgErr evt_mgr_on(const char *evt, void (*handle)(const char *)) {
+	struct EvtMap *map;
 
-static struct EvtMap evt_maps[] = {
-	{.type = "hello", .handle = hello},
-};
+	if (!(map = malloc(sizeof(struct EvtMap))))
+		return OUT_OF_MEM;
+
+	map->evt = evt;
+	map->handle = handle;
+
+	lst_append(evt_maps, map);
+
+	return OK;
+}
 
 /*
- * Handle a raw incoming message.
+ * Translate an incoming message into appropriate emits.
  */
-enum RmpgErr evt_mgr_on_raw(char *buff, size_t len) {
+enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
 	int i;
 	json_t *root, *event;
 	json_error_t err;
@@ -39,14 +56,10 @@ enum RmpgErr evt_mgr_on_raw(char *buff, size_t len) {
 		return ERROR_JSON_PARSE;
 
 	/* Call each event handler registered for the event. */
-	for (i = 0; i < sizeof(evt_maps)/sizeof(evt_maps[0]); ++i)
-		if (!strcmp(evt_maps[i].type, type))
-			evt_maps[i].handle(buff);
-}
+	for (i = 0; i < evt_maps->num_elems; ++i) {
+		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
 
-/* Register an event handler for an event fired with type evt_type */
-/* void evt_mgr_register( */
-/* 	char *evt_type, */
-/* 	void (*handle)(char *payload) */
-/* ) { */
-/* } */
+		if (!strcmp(map->evt, type))
+			map->handle(buff);
+	}
+}
