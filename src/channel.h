@@ -5,7 +5,7 @@
 #include "lws_short.h"
 #include "message_q.h"
 
-/* See "init_channel" */
+/* See "channel_init" */
 struct Channel {
 	char *name;
 	struct MessageQ *msg_q;
@@ -35,7 +35,7 @@ struct ChannelHandle {
 	struct Node *head;
 };
 
-struct Channel *init_channel(void);
+struct Channel *channel_init(void);
 
 #define CHANNEL_H
 #endif

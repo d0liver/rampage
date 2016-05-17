@@ -59,6 +59,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	int bytes_written, bytes_assemble;
 	char *buff;
 
+	debug("Called flush...\n");
 	/* Get the number of bytes for the buffer */
 	bytes_assemble = msg_q->assemble(msg_q, handle->head, NULL);
     /*
@@ -119,6 +120,8 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
 	struct Node *n;
 	struct MessageQ *msg_q = handle->channel->msg_q;
 
+	debug("Called send\n");
+
 	if(msg_q->append(msg_q, payload, psize))
 		return OUT_OF_MEM;
 
@@ -134,7 +137,7 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
  * Communication between connected users flows through channels. Each user has
  * a list of channels that they receive events from and can publish events to.
  */
-struct Channel *init_channel(void) {
+struct Channel *channel_init(void) {
 	struct MessageQ *msg_q;
 	struct Channel *ch;
 

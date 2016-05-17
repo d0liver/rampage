@@ -7,7 +7,8 @@ enum RmpgErr {
 	EMPTY_RESPONSE,
 	ERROR_WRITING_TO_SOCKET,
 	ERROR_PARTIAL_WRITE,
-	ERROR_JSON_PARSE
+	ERROR_JSON_PARSE,
+	ERROR_JSON_PACK,
 };
 
 void debug (const char *format, ...);

@@ -4,12 +4,13 @@
 #include <string.h>
 
 #include "lst.h"
+#include "channel.h"
 #include "evt_mgr.h"
 #include "err.h"
 
 struct EvtMap {
 	const char *evt;
-	void (*handle)(const char *);
+	void (*handle)(struct Session *, const char *);
 };
 
 static struct List *evt_maps;
@@ -22,7 +23,39 @@ enum RmpgErr evt_mgr_init(void) {
 	return OK;
 }
 
-enum RmpgErr evt_mgr_on(const char *evt, void (*handle)(const char *)) {
+enum RmpgErr evt_mgr_emit(
+	const char *evt, const char *buff,
+	struct ChannelHandle **handles, int num_handles
+) {
+	json_t *msg;
+	char *res;
+	int i;
+
+	if(!(msg = json_pack(
+		"{s: {s: s}, s:s}",
+		"event",
+			"type", evt,
+		"payload", buff
+	)))
+		return ERROR_JSON_PACK;
+	res = json_dumps(msg, 0);
+
+	debug("Emit Event: %s\n", evt);
+	debug("Emit Payload: %s\n", buff);
+	debug("Dumping message: %s\n", res);
+	/* Send to all of the requested channels */
+	for (i = 0; i < num_handles; ++i) {
+		debug("Sending to handle...\n");
+		handles[i]->channel->snd(handles[i], res, strlen(res));
+	}
+
+	return OK;
+}
+
+enum RmpgErr evt_mgr_on(
+	const char *evt,
+	void (*handle)(struct Session *, const char *)
+) {
 	struct EvtMap *map;
 
 	if (!(map = malloc(sizeof(struct EvtMap))))
@@ -39,7 +72,7 @@ enum RmpgErr evt_mgr_on(const char *evt, void (*handle)(const char *)) {
 /*
  * Translate an incoming message into appropriate emits.
  */
-enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
+enum RmpgErr evt_mgr_receive(struct Session *sess, char *buff, size_t len) {
 	int i;
 	json_t *root, *event;
 	json_error_t err;
@@ -64,7 +97,7 @@ enum RmpgErr evt_mgr_receive(char *buff, size_t len) {
 		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
 
 		if (!strcmp(map->evt, type))
-			map->handle(buff);
+			map->handle(sess, buff);
 	}
 
 	return OK;

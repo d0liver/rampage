@@ -95,6 +95,12 @@ static void append_list(struct MessageQ *msg_q, struct MessageQ *append) {
 	msg_q->bytes += append->bytes;
 }
 
+void destroy(struct MessageQ *msg_q) {
+	/* Free all of the nodes */
+	prune(msg_q, msg_q->tail);
+	free(msg_q);
+}
+
 struct MessageQ *message_q_init() {
 	struct MessageQ *msg_q;
 	/* We use an empty node as the head so that way when we hand out references
@@ -119,6 +125,7 @@ struct MessageQ *message_q_init() {
 	msg_q->prune  = prune;
 	msg_q->append = append;
 	msg_q->append_list = append_list;
+	msg_q->destroy = destroy;
 
 	return msg_q;
 }

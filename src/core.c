@@ -62,7 +62,10 @@ static struct option long_opts[] = {
 static const char *short_opts = "eci:hsap:d:Dr:";
 
 /* This is the public api for registering an event handler with rampage */
-enum RmpgErr rmpg_on(const char *evt, void (*handle)(const char *)) {
+enum RmpgErr rmpg_on(
+	const char *evt,
+	void (*handle)(struct Session *sess, const char *)
+) {
 	evt_mgr_on(evt, handle);
 
 	return OK;
@@ -85,13 +88,15 @@ static int callback_http(
 static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	int i;
 
-	debug("Writeable, num ch handles: %d\n", sess->num_ch_handles);
+	debug("Writeable, num ch handles: %d\n", sess->ch_handles->num_elems);
     /*
 	 * Send all of the messages that are waiting in each channel (from everyone
 	 * else to us)
      */
-	for (i = 0; i < sess->num_ch_handles; ++i)
-		sess->ch_handles[i]->channel->flush(sess->ch_handles[i], wsi);
+	for (i = 0; i < sess->ch_handles->num_elems; ++i) {
+		struct ChannelHandle *h = sess->ch_handles->items[i];
+		h->channel->flush(h, wsi);
+	}
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
 		lws_callback_on_writeable(ctx, wsi);
@@ -140,7 +145,10 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
          */
 		/* event_mgr->handle(buff); */
 		debug("Assembled message, passing off to event manager.\n");
-		evt_mgr_receive(buff, len);
+		evt_mgr_receive(sess, buff, len);
+
+		debug("Scheduled write callback.\n");
+		lws_callback_on_writeable(ctx, wsi);
 
         /*
 		 * This will also free up the previous payloads attached to the list.
@@ -156,14 +164,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 
 static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
 	debug("Initializing session...\n");
-	/* Initialize the world channel */
-	sess->ch_handles = malloc(sizeof(struct ChannelHandle *));
-	sess->ch_handles[0] = world->handle(world);
-	sess->num_ch_handles = 1;
-
-	/* Initialize our pending list */
-	sess->pending = message_q_init();
-	debug("Finished initializing session...\n");
+	session_init(sess);
 
 	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
 }
@@ -299,7 +300,7 @@ void rmpg_init(int argc, char **argv) {
 	debug("Rampage initialized, debugging...\n");
 
 	/* FIXME: What's the best recovery option here? */
-	if(!(world = init_channel())) {
+	if(!(world = channel_init())) {
 		fprintf(stderr, "Couldn't initialize world channel\n");
 		exit(1);
 	}
