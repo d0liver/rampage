@@ -13,7 +13,7 @@
 #include <libwebsockets.h>
 
 /* Local includes */
-#include "event_mgr.h"
+#include "evt_mgr.h"
 #include "rampage.h"
 #include "lws_short.h"
 #include "defs.h"
@@ -292,10 +292,7 @@ void parse_opts(int argc, char **argv) {
 		lwsl_err("libwebsocket init failed\n");
 }
 
-void init_rampage(int argc, char **argv)
-{
-	int status = 0;
-
+void rmpg_init(int argc, char **argv) {
 	parse_opts(argc, argv);
 	evt_mgr_init();
 
@@ -306,13 +303,20 @@ void init_rampage(int argc, char **argv)
 		fprintf(stderr, "Couldn't initialize world channel\n");
 		exit(1);
 	}
+}
+
+void rmpg_loop(void) {
+	int status = 0;
+
     /*
 	 * Do the central poll loop.
 	 * Negative statuses from libwebsockets indicate an error.
      */
 	while (status >= 0 && !force_exit)
 		status = libwebsocket_service(context, /* Timeout */ 50);
+}
 
+void rmpg_cleanup(void) {
 	/* Cleanup */
 	libwebsocket_context_destroy(context);
 	lwsl_notice("Rampage exited cleanly\n");

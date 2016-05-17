@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "lst.h"
-#include "event_mgr.h"
+#include "evt_mgr.h"
 #include "err.h"
 
 struct EvtMap {
@@ -15,6 +15,7 @@ struct EvtMap {
 static struct List *evt_maps;
 
 enum RmpgErr evt_mgr_init(void) {
+	printf("Initialized event manager...\n");
 	if(!(evt_maps = lst_init(/* Grow by */ 4)))
 		return OUT_OF_MEM;
 
