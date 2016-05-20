@@ -3,6 +3,7 @@
 #include "channel.h"
 #include "session.h"
 
+void evt_mgr_connected(struct Session *sess);
 enum RmpgErr evt_mgr_init(void);
 enum RmpgErr evt_mgr_on(
 	const char *evt,

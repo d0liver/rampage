@@ -24,8 +24,8 @@ static long assemble(struct MessageQ *msg_q, struct Node *n, char *buff) {
 	long bytes = 0;
 
 	while (n != msg_q->tail) {
-		debug("Payload: %s\n", n->payload);
-		debug("Payload size: %ld\n", n->payload_size);
+		debug("Assemble part: %s\n", n->payload);
+		debug("Assemble part size: %ld\n", n->payload_size);
 		if (buff)
 			buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
 		bytes += n->payload_size;
@@ -71,6 +71,7 @@ static void prune(struct MessageQ *msg_q, struct Node *n) {
 static struct Node *append(struct MessageQ *msg_q, char *payload, long psize) {
 	struct Node *empt;
 
+	debug("MessageQ append.\n");
 	if (!(empt = empty_node()))
 		return NULL;
 

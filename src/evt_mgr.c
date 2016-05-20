@@ -15,6 +15,20 @@ struct EvtMap {
 
 static struct List *evt_maps;
 
+static void notify(struct Session *sess, const char *type, const char *buff) {
+	int i;
+
+	/* Call each event handler registered for the event. */
+	for (i = 0; i < evt_maps->num_elems; ++i) {
+		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
+
+		if (!strcmp(map->evt, type)) {
+			debug("Firing event: %s, %s\n", map->evt, type);
+			map->handle(sess, buff);
+		}
+	}
+}
+
 enum RmpgErr evt_mgr_init(void) {
 	printf("Initialized event manager...\n");
 	if(!(evt_maps = lst_init(/* Grow by */ 4)))
@@ -42,7 +56,6 @@ enum RmpgErr evt_mgr_emit(
 
 	debug("Emit Event: %s\n", evt);
 	debug("Emit Payload: %s\n", buff);
-	debug("Dumping message: %s\n", res);
 	/* Send to all of the requested channels */
 	for (i = 0; i < num_handles; ++i) {
 		debug("Sending to handle...\n");
@@ -50,6 +63,11 @@ enum RmpgErr evt_mgr_emit(
 	}
 
 	return OK;
+}
+
+/* We have been informed that the session has connected */
+void evt_mgr_connected(struct Session *sess) {
+	notify(sess, "connected", NULL);
 }
 
 enum RmpgErr evt_mgr_on(
@@ -90,15 +108,9 @@ enum RmpgErr evt_mgr_receive(struct Session *sess, char *buff, size_t len) {
 	))
 		return ERROR_JSON_PARSE;
 
-	debug("Payload: %s\n", buff);
+	debug("Event Manager received part: %s\n", buff);
 
-	/* Call each event handler registered for the event. */
-	for (i = 0; i < evt_maps->num_elems; ++i) {
-		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
-
-		if (!strcmp(map->evt, type))
-			map->handle(sess, buff);
-	}
+	notify(sess, type, buff);
 
 	return OK;
 }

@@ -117,8 +117,8 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
 
-	debug("Received: %s\n", (char *) in);
-	debug("Remaining: %d\n", (int) remaining);
+	debug("Rampage received: %s\n", (char *) in);
+	debug("Rampage remaining: %d\n", (int) remaining);
 
 	/* Message is finished. */
 	if (!remaining && lws_is_final_fragment(wsi))
@@ -182,8 +182,9 @@ static int callback_lws_rmpg (
 	switch (reason)
 	{
 		case LWS_CALLBACK_ESTABLISHED:
-			debug("Connection established\n");
+			debug("Connection established.\n");
 			init(wsi, session, in, len);
+			evt_mgr_connected(sess);
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:

@@ -68,7 +68,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	if(!bytes_assemble)
 		return OK;
 
-	debug("Bytes assemble: %d\n", bytes_assemble);
+	debug("Bytes to be assembled: %d\n", bytes_assemble);
 
 	if(!(buff = malloc(
 		bytes_assemble +
@@ -120,7 +120,7 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
 	struct Node *n;
 	struct MessageQ *msg_q = handle->channel->msg_q;
 
-	debug("Called send\n");
+	debug("Channel received.\n");
 
 	if(msg_q->append(msg_q, payload, psize))
 		return OUT_OF_MEM;
