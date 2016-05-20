@@ -19,7 +19,7 @@ enum RmpgErr session_init(struct Session *sess) {
 	return 0;
 }
 
-enum RmpgErr session_subscribe(struct Session *sess, struct Channel *world) {
+enum RmpgErr rmpg_session_subscribe(struct Session *sess, struct Channel *world) {
 	struct ChannelHandle *hndl = world->handle(world);
 
 	debug("Subscribed session to channel.\n");

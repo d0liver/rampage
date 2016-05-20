@@ -37,7 +37,7 @@ enum RmpgErr evt_mgr_init(void) {
 	return OK;
 }
 
-enum RmpgErr evt_mgr_emit(
+enum RmpgErr rmpg_evt_mgr_emit(
 	const char *evt, const char *buff,
 	struct ChannelHandle **handles, int num_handles
 ) {
@@ -70,7 +70,7 @@ void evt_mgr_connected(struct Session *sess) {
 	notify(sess, "connected", NULL);
 }
 
-enum RmpgErr evt_mgr_on(
+enum RmpgErr rmpg_evt_mgr_on(
 	const char *evt,
 	void (*handle)(struct Session *, const char *)
 ) {

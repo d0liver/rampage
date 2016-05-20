@@ -66,7 +66,7 @@ enum RmpgErr rmpg_on(
 	const char *evt,
 	void (*handle)(struct Session *sess, const char *)
 ) {
-	evt_mgr_on(evt, handle);
+	rmpg_evt_mgr_on(evt, handle);
 
 	return OK;
 }
