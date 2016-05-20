@@ -31,7 +31,14 @@ add_library(rampage SHARED
 	# rampage.def
 )
 
+set_target_properties(rampage PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/src/rampage.h)
+
 set_target_properties(rampage PROPERTIES
 	VERSION ${RAMPAGE_VERSION}
 	SOVERSION ${RAMPAGE_SOVERSION}
 )
+
+install(TARGETS rampage
+	LIBRARY DESTINATION lib
+	ARCHIVE DESTINATION lib
+	PUBLIC_HEADER DESTINATION "/usr/local/include/" COMPONENT dev)
