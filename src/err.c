@@ -6,7 +6,7 @@
 #include "defs.h"
 
 #if DEBUG
-#define PREFIX "[Rampage] "
+#define PREFIX "\033[0;31m[Rampage]\033[0m "
 void debug (const char *format, ...)
 {
 	va_list args;
