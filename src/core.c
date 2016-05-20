@@ -263,7 +263,7 @@ void parse_opts(int argc, char **argv) {
 	lws_set_log_level(debug_level, lwsl_emit_syslog);
 
 	/* TODO: Include license/copyright info. */
-	lwsl_notice("Rampage websockets server.\n");
+	debug("Rampage websockets server..\n");
 
 	info.iface = iface;
 	info.protocols = protocols;
@@ -321,5 +321,5 @@ void rmpg_loop(void) {
 void rmpg_cleanup(void) {
 	/* Cleanup */
 	libwebsocket_context_destroy(context);
-	lwsl_notice("Rampage exited cleanly\n");
+	debug("Rampage exited cleanly\n");
 }

@@ -31,14 +31,17 @@ add_library(rampage SHARED
 	# rampage.def
 )
 
-set_target_properties(rampage PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/src/rampage.h)
+file(GLOB_RECURSE RAMPAGE_HDR_PUBLIC 
+	${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+)
 
 set_target_properties(rampage PROPERTIES
 	VERSION ${RAMPAGE_VERSION}
 	SOVERSION ${RAMPAGE_SOVERSION}
+	rampage PROPERTIES PUBLIC_HEADER "${RAMPAGE_HDR_PUBLIC}"
 )
 
 install(TARGETS rampage
 	LIBRARY DESTINATION lib
 	ARCHIVE DESTINATION lib
-	PUBLIC_HEADER DESTINATION "/usr/local/include/" COMPONENT dev)
+	PUBLIC_HEADER DESTINATION include/rampage COMPONENT dev)
