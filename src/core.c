@@ -64,9 +64,10 @@ static const char *short_opts = "eci:hsap:d:Dr:";
 /* This is the public api for registering an event handler with rampage */
 enum RmpgErr rmpg_on(
 	const char *evt,
-	void (*handle)(struct Session *sess, const char *)
+	void (*handle)(struct Session *sess, const char *),
+	void *cb_data
 ) {
-	rmpg_evt_mgr_on(evt, handle);
+	rmpg_evt_mgr_on(evt, cb_data, handle);
 
 	return OK;
 }

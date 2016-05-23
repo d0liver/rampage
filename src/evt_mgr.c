@@ -10,7 +10,8 @@
 
 struct EvtMap {
 	const char *evt;
-	void (*handle)(struct Session *, const char *);
+	void *cb_data;
+	void (*handle)(struct Session *, const char *, void *);
 };
 
 static struct List *evt_maps;
@@ -24,7 +25,7 @@ static void notify(struct Session *sess, const char *type, const char *buff) {
 
 		if (!strcmp(map->evt, type)) {
 			debug("Firing event: %s, %s\n", map->evt, type);
-			map->handle(sess, buff);
+			map->handle(sess, buff, map->cb_data);
 		}
 	}
 }
@@ -72,7 +73,8 @@ void evt_mgr_connected(struct Session *sess) {
 
 enum RmpgErr rmpg_evt_mgr_on(
 	const char *evt,
-	void (*handle)(struct Session *, const char *)
+	void (*handle)(struct Session *, const char *, void *),
+	void *cb_data
 ) {
 	struct EvtMap *map;
 
@@ -81,6 +83,7 @@ enum RmpgErr rmpg_evt_mgr_on(
 
 	map->evt = evt;
 	map->handle = handle;
+	map->cb_data = cb_data;
 
 	lst_append(evt_maps, map, 0);
 
