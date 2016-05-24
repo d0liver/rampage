@@ -31,10 +31,8 @@ struct Extension {
 };
 
 struct HttpContext {
-	struct RouteServices *services;
 	/* These are the http route handlers */
-	enum SohmuError (**routes)(
-		struct HttpContext *http_ctx,
+	enum RmpgErr (**routes)(
 		const char *page_request_uri,
 		struct HttpResponse **response
 	);
@@ -45,24 +43,16 @@ struct HttpSession {
 	struct HttpResponse *response;
 };
 
-struct RouteServices {
-	MYSQL *mysql;
-	sqlite3 *sqlite;
-};
-
-int callback_http(
-	struct HttpContext *http_ctx,
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
-	enum libwebsocket_callback_reasons reason,
-	void *user, void *in, size_t len
+int http_callback(
+	struct libwebsocket_context *,
+	struct libwebsocket *,
+	enum libwebsocket_callback_reasons,
+	void *, void *, size_t
 );
 
 /* Routes */
-enum SohmuError register_route(
-	struct HttpContext *http_ctx,
-	enum SohmuError (*route)(
-		struct HttpContext *http_ctx,
+enum RmpgErr register_route(
+	enum RmpgErr (*route)(
 		const char *request_uri,
 		struct HttpResponse **response
 	)
@@ -70,22 +60,15 @@ enum SohmuError register_route(
 char *verify_path(const char *parent_path, const char *child_path);
 
 /* Response */
-enum SohmuError init_http_response(struct HttpResponse **response_to_init);
-enum SohmuError destroy_http_response(struct HttpResponse *response_to_free);
-enum SohmuError add_response_header(
+enum RmpgErr init_http_response(struct HttpResponse **response_to_init);
+enum RmpgErr destroy_http_response(struct HttpResponse *response_to_free);
+enum RmpgErr add_response_header(
 	struct HttpResponse *response,
 	const char *name, const char *value
 );
 
 /* Http Context */
-enum SohmuError http_init(
-	struct HttpContext **http_ctx,
-	struct RouteServices *services
-);
-enum SohmuError http_destroy(struct HttpContext *http_ctx);
-enum SohmuError init_route_services(
-	struct RouteServices **services,
-	MYSQL *mysql,
-	sqlite3 *sqlite
-);
+enum RmpgErr http_init();
+
+enum RmpgErr http_destroy();
 #endif

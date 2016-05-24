@@ -75,7 +75,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 		LWS_SEND_BUFFER_PRE_PADDING +
 		LWS_SEND_BUFFER_POST_PADDING
 	)))
-		return OUT_OF_MEM;
+		return ERROR_OUT_OF_MEMORY;
 
 	buff += LWS_SEND_BUFFER_PRE_PADDING;
 
@@ -123,7 +123,7 @@ static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize)
 	debug("Channel received.\n");
 
 	if(msg_q->append(msg_q, payload, psize))
-		return OUT_OF_MEM;
+		return ERROR_OUT_OF_MEMORY;
 
 	return OK;
 }

@@ -5,11 +5,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "errors.h"
+#include "err.h"
 #include "http.h"
 
 #define MAX_REQUEST_URI_LEN
 #define NUM_ROUTES_INC 16
+
+static struct HttpContext http_ctx;
 
 static char *get_mimetype(const char *fname)
 {
@@ -39,7 +41,7 @@ static char *get_mimetype(const char *fname)
 /* Check that the child path is actually in a subdirectory of the parent. We
  * use this to make sure that requested resources are actually underneath the
  * specified RESOURCE_PATH to prevent unauthorized access to resources */
-static char *verify_path(const char *parent_path, const char *child_path) {
+char *verify_path(const char *parent_path, const char *child_path) {
 	char * real_parent_path, *real_child_path;
 	real_parent_path = realpath(parent_path, NULL);
 	real_child_path = realpath(child_path, NULL);
@@ -67,7 +69,7 @@ static char *verify_path(const char *parent_path, const char *child_path) {
 		free(mimetype); \
 	} while (0)
 
-static enum SohmuError send_file_response(
+static enum RmpgErr send_file_response(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	struct HttpResponse *response,
@@ -87,7 +89,7 @@ static enum SohmuError send_file_response(
 			HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE, NULL
 		);
 		send_response_cleanup();
-		return UNSUPPORTED_MEDIA_TYPE;
+		return ERROR_UNSUPPORTED_MEDIA_TYPE;
 	}
 
 	/* Finally, serve out our file and headers */
@@ -102,14 +104,14 @@ static enum SohmuError send_file_response(
 	) {
 		/* error or can't reuse connection: close the socket */
 		send_response_cleanup();
-		return CANT_REUSE;
+		return ERROR_CANT_REUSE;
 	}
 
 	send_response_cleanup();
 	return OK;
 }
 
-static enum SohmuError add_response_header(
+enum RmpgErr add_response_header(
 	struct HttpResponse *response,
 	const char *name, const char *value
 ) {
@@ -126,7 +128,7 @@ static enum SohmuError add_response_header(
 				realloc(response->headers, sizeof(struct Header)*alloc);
 
 		if (!response->headers)
-			return OUT_OF_MEMORY;
+			return ERROR_OUT_OF_MEMORY;
 	}
 	response->headers[response->num_headers].name = malloc(strlen(name)+1);
 	strcpy(response->headers[response->num_headers].name, name);
@@ -140,7 +142,7 @@ static enum SohmuError add_response_header(
  * responding with a file libwebsockets will just respond with a status of 200.
  * Ideally both of those kinds of responses should be combined into common
  * response logic but this will do for now. */
-static enum SohmuError send_redirect_response(
+static enum RmpgErr send_redirect_response(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	struct HttpResponse *response
@@ -157,16 +159,16 @@ static enum SohmuError send_redirect_response(
 			context, wsi,
 			302, &buff_pointer,
 			buff_end_pointer
-	)) return FAIL;
+	)) return ERROR_FAIL;
 
 	if (lws_add_http_header_by_token(
 			context, wsi,
 			WSI_TOKEN_HTTP_LOCATION,
 			(unsigned char *)response->redirect_location,
 			strlen(response->redirect_location), &buff_pointer, buff_end_pointer
-	)) return FAIL;
+	)) return ERROR_FAIL;
 	if (lws_finalize_http_header(context, wsi, &buff_pointer, buff_end_pointer))
-		return FAIL;
+		return ERROR_FAIL;
 
 	bytes_written = libwebsocket_write(
 		wsi,
@@ -181,7 +183,7 @@ static enum SohmuError send_redirect_response(
 }
 
 /* Set the headers on the response */
-static enum SohmuError set_file_headers(
+static enum RmpgErr set_file_headers(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	struct HttpResponse *response,
@@ -220,7 +222,7 @@ static enum SohmuError set_file_headers(
 			*headers = realloc(*headers, alloc);
 		else {
 			*headers = NULL;
-			return EXCEEDED_MAX_HEADER_SIZE;
+			return ERROR_EXCEEDED_MAX_HEADER_SIZE;
 		}
 
 		if (
@@ -232,7 +234,7 @@ static enum SohmuError set_file_headers(
 			)
 		) {
 			*headers = NULL;
-			return COULD_NOT_SET_HEADERS;
+			return ERROR_COULD_NOT_SET_HEADERS;
 		}
 		len = headers_after - *headers;
 	}
@@ -243,28 +245,24 @@ static enum SohmuError set_file_headers(
 	return OK;
 }
 
-enum SohmuError route(
-	struct HttpContext *http_ctx,
-	struct HttpResponse **response,
-	const char *in
-) {
+enum RmpgErr route(struct HttpResponse **response, const char *in) {
 	int i;
-	enum SohmuError status;
+	enum RmpgErr status;
 
-	if (http_ctx->num_routes == 0)
-		return NO_REGISTERED_ROUTES;
+	if (http_ctx.num_routes == 0)
+		return ERROR_NO_REGISTERED_ROUTES;
 
 	/* Iterate over our routes and see if any of them can handle the request */
-	for (i = 0; i < http_ctx->num_routes; ++i) {
-		status = http_ctx->routes[i](http_ctx, in, response);
+	for (i = 0; i < http_ctx.num_routes; ++i) {
+		status = http_ctx.routes[i](in, response);
 		/* Here, either we found the route and maybe some error occurred.
 		 * Either way we're finished looking. */
-		if (status != ROUTE_NOT_FOUND)
+		if (status != ERROR_ROUTE_NOT_FOUND)
 			return status;
 	}
 
 	/* TODO: Maybe return something else? */
-	return ROUTE_NOT_FOUND;
+	return ERROR_ROUTE_NOT_FOUND;
 }
 
 static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
@@ -288,8 +286,7 @@ static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
 		*response = NULL; \
 	} while (0)
 
-enum SohmuError http_request(
-	struct HttpContext *http_ctx,
+enum RmpgErr http_request(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	void *user,
@@ -300,7 +297,7 @@ enum SohmuError http_request(
 ) {
 	int i, len_headers;
 	char *headers, *mimetype, *request_uri, *tmp;
-	enum SohmuError status;
+	enum RmpgErr status;
 	long arglen;
 
 	tmp = rebuild_full_uri(wsi, in);
@@ -315,18 +312,12 @@ enum SohmuError http_request(
 			HTTP_STATUS_BAD_REQUEST, NULL
 		);
 		http_request_cleanup();
-		return BAD_REQUEST;
+		return ERROR_BAD_REQUEST;
 	}
 
-	status = route(http_ctx, response, request_uri);
-	if (status != ROUTE_FOUND) {
-		fprintf(
-			stderr, "An error occurred while routing: %s\n",
-			err_msg(status)
-		);
-
-		return 0;
-	}
+	status = route(response, request_uri);
+	if (status != ROUTE_FOUND)
+		return status;
 
 	if ((*response)->resource_path) {
 		status = set_file_headers(
@@ -348,7 +339,7 @@ enum SohmuError http_request(
 		 * back a status. It's unfortunate that this is being handled totally
 		 * separately at the moment. */
 		if(status = send_redirect_response(context, wsi, *response))
-			fprintf(stderr, "Error sending redirect: %s\n", err_msg(status));
+			return status;
 	}
 
 	if (tmp)
@@ -356,39 +347,32 @@ enum SohmuError http_request(
 	return OK;
 }
 
-static enum SohmuError try_to_reuse(struct libwebsocket *wsi) {
-	enum SohmuError status;
+static enum RmpgErr try_to_reuse(struct libwebsocket *wsi) {
+	enum RmpgErr status;
 	int return_code;
 
 	return_code = lws_http_transaction_completed(wsi)?-1:0;
 	if (return_code)
-		return CANT_REUSE;
+		return ERROR_CANT_REUSE;
 
 	return OK;
 }
 
-int callback_http(
-	struct HttpContext *http_ctx,
+int http_callback(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	enum libwebsocket_callback_reasons reason, void *user,
 	void *in, size_t len
 ) {
-	enum SohmuError result;
+	enum RmpgErr result;
 	struct HttpSession *usr = user;
 
 	if (reason == LWS_CALLBACK_HTTP) {
-		result = http_request(
-			http_ctx, context,
-			wsi, usr, in, len,
-			&(usr->response)
-		);
+		result = http_request(context, wsi, usr, in, len, &(usr->response));
 		if (result != OK)
 			fprintf(
-				stderr,
-				"Error requesting: %s, %s\n",
-				usr->response->resource_path,
-				err_msg(result)
+				stderr, "Error requesting: %s\n",
+				usr->response->resource_path
 			);
 	}
 	else if (reason == LWS_CALLBACK_HTTP_FILE_COMPLETION) {
@@ -401,55 +385,46 @@ int callback_http(
 	return 0;
 }
 
-enum SohmuError http_init(
-	struct HttpContext **http_ctx,
-	struct RouteServices *services
-) {
-	if (!(*http_ctx = malloc(sizeof(struct HttpContext))))
-		return OUT_OF_MEMORY;
-	if(!((*http_ctx)->routes = malloc(NUM_ROUTES_INC))) {
-		free(http_ctx);
-		return OUT_OF_MEMORY;
-	}
-	(*http_ctx)->num_routes = 0;
-	(*http_ctx)->services = services;
+enum RmpgErr http_init() {
+	if(!(http_ctx.routes = malloc(NUM_ROUTES_INC)))
+		return ERROR_OUT_OF_MEMORY;
+
+	http_ctx.num_routes = 0;
 
 	return OK;
 }
 
-enum SohmuError http_destroy(struct HttpContext *http_ctx) {
+enum RmpgErr http_destroy() {
 	int i;
 	/* Free all of the route callbacks */
-	for (i = 0; http_ctx->num_routes; ++i)
-		free(http_ctx->routes[i]);
+	for (i = 0; http_ctx.num_routes; ++i)
+		free(http_ctx.routes[i]);
 
 	return OK;
 }
 
-enum SohmuError register_route(
-	struct HttpContext *http_ctx,
-	enum SohmuError (*route)(
-		struct HttpContext *http_ctx,
+enum RmpgErr register_route(
+	enum RmpgErr (*route)(
 		const char *request_uri,
 		struct HttpResponse **response
 	)
 ) {
 	int route_alloc_size =
-		(http_ctx->num_routes + NUM_ROUTES_INC) & ~NUM_ROUTES_INC;
-	if (http_ctx->num_routes >= route_alloc_size)
-		http_ctx->routes =
-			realloc(http_ctx->routes, http_ctx->num_routes + NUM_ROUTES_INC);
-	if(!http_ctx->routes)
-		return OUT_OF_MEMORY;
-	http_ctx->routes[http_ctx->num_routes++] = route; 
+		(http_ctx.num_routes + NUM_ROUTES_INC) & ~NUM_ROUTES_INC;
+	if (http_ctx.num_routes >= route_alloc_size)
+		http_ctx.routes =
+			realloc(http_ctx.routes, http_ctx.num_routes + NUM_ROUTES_INC);
+	if(!http_ctx.routes)
+		return ERROR_OUT_OF_MEMORY;
+	http_ctx.routes[http_ctx.num_routes++] = route; 
 
 	return OK;
 }
 
-enum SohmuError init_http_response(struct HttpResponse **response_to_init) {
+enum RmpgErr init_http_response(struct HttpResponse **response_to_init) {
 	*response_to_init = malloc(sizeof(struct HttpResponse));
 	if (!*response_to_init)
-		return OUT_OF_MEMORY;
+		return ERROR_OUT_OF_MEMORY;
 	(*response_to_init)->resource_path = NULL;
 	(*response_to_init)->redirect_location = NULL;
 	(*response_to_init)->num_headers = 0;
@@ -459,7 +434,7 @@ enum SohmuError init_http_response(struct HttpResponse **response_to_init) {
 	return OK;
 }
 
-enum SohmuError destroy_http_response(struct HttpResponse *response_to_free) {
+enum RmpgErr destroy_http_response(struct HttpResponse *response_to_free) {
 	int i;
 
 	if (response_to_free->resource_path)

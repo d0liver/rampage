@@ -13,6 +13,7 @@
 #include <libwebsockets.h>
 
 /* Local includes */
+#include "http.h"
 #include "evt_mgr.h"
 #include "rampage.h"
 #include "lws_short.h"
@@ -20,7 +21,6 @@
 #include "channel.h"
 #include "session.h"
 
-static int callback_http(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
 static int callback_lws_rmpg(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
 static struct Channel *world;
 
@@ -29,7 +29,7 @@ static lws_protocols protocols[] = {
 	/* first protocol must always be HTTP handler */
 	{
 		"http-only",		/* name */
-		callback_http,		/* callback */
+		http_callback,		/* callback */
 		0,	/* per_session_data_size */
 		0,	/* max frame size / rx buffer */
 	},
@@ -70,19 +70,6 @@ enum RmpgErr rmpg_on(
 	rmpg_evt_mgr_on(evt, cb_data, handle);
 
 	return OK;
-}
-
-/*
- * TODO: Add in the http component (for serving static files).
- */
-static int callback_http(
-	lws_ctx *ctx,
-	lws_wsi *wsi,
-	lws_callback_reasons reason,
-	void *sess, void *in, size_t len
-)
-{
-	return 0;
 }
 
 /* libwebsockets gave us a write callback. Time to try to write out some data */

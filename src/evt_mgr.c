@@ -33,7 +33,7 @@ static void notify(struct Session *sess, const char *type, const char *buff) {
 enum RmpgErr evt_mgr_init(void) {
 	printf("Initialized event manager...\n");
 	if(!(evt_maps = lst_init(/* Grow by */ 4)))
-		return OUT_OF_MEM;
+		return ERROR_OUT_OF_MEMORY;
 
 	return OK;
 }
@@ -79,7 +79,7 @@ enum RmpgErr rmpg_evt_mgr_on(
 	struct EvtMap *map;
 
 	if (!(map = malloc(sizeof(struct EvtMap))))
-		return OUT_OF_MEM;
+		return ERROR_OUT_OF_MEMORY;
 
 	map->evt = evt;
 	map->handle = handle;
