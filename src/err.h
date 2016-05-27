@@ -21,6 +21,7 @@ enum RmpgErr {
 };
 
 void debug (const char *format, ...);
+void http_debug(const char *format, ...);
 
 #define RMPG_ERR_H
 #endif

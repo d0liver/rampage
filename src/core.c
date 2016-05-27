@@ -13,6 +13,7 @@
 #include <libwebsockets.h>
 
 /* Local includes */
+#include "err.h"
 #include "http.h"
 #include "evt_mgr.h"
 #include "rampage.h"
@@ -288,6 +289,7 @@ void rmpg_init(int argc, char **argv) {
 	http_init();
 
 	debug("Rampage initialized, debugging...\n");
+	http_debug("Poop test\n");
 
 	/* FIXME: What's the best recovery option here? */
 	if(!(world = channel_init())) {
