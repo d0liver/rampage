@@ -1,4 +1,4 @@
-#ifndef LINKED_LIST_H
+#ifndef RMPG_LINKED_LIST_H
 
 #include "err.h"
 
@@ -27,5 +27,5 @@ struct MessageQ {
 
 struct MessageQ *message_q_init();
 
-#define LINKED_LIST_H
+#define RMPG_LINKED_LIST_H
 #endif

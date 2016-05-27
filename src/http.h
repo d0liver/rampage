@@ -1,12 +1,14 @@
-#ifndef HTTP_H
+#ifndef RMPG_HTTP_H
 #include <stdlib.h>
 #include <libwebsockets.h>
 #include <mysql/mysql.h>
 #include <sqlite3.h>
 
-#define HTTP_H
+#define RMPG_HTTP_H
 #define RESOURCE_PATH "/home/david/cohmu"
 #define INDEX_PAGE "/index.html"
+
+typedef struct HttpResponse *(Route)(const char *);
 
 /* This is an http response object that should come back from a route. */
 struct HttpResponse {
@@ -32,10 +34,7 @@ struct Extension {
 
 struct HttpContext {
 	/* These are the http route handlers */
-	enum RmpgErr (**routes)(
-		const char *page_request_uri,
-		struct HttpResponse **response
-	);
+	Route **routes;
 	int num_routes;
 };
 
@@ -51,24 +50,18 @@ int http_callback(
 );
 
 /* Routes */
-enum RmpgErr register_route(
-	enum RmpgErr (*route)(
-		const char *request_uri,
-		struct HttpResponse **response
-	)
-);
+enum RmpgErr register_route(Route *);
 char *verify_path(const char *parent_path, const char *child_path);
 
 /* Response */
-enum RmpgErr init_http_response(struct HttpResponse **response_to_init);
-enum RmpgErr destroy_http_response(struct HttpResponse *response_to_free);
+struct HttpResponse *init_http_response(void);
+void destroy_http_response(struct HttpResponse *response_to_free);
 enum RmpgErr add_response_header(
 	struct HttpResponse *response,
 	const char *name, const char *value
 );
 
 /* Http Context */
-enum RmpgErr http_init();
+enum RmpgErr http_init(void);
 
-enum RmpgErr http_destroy();
 #endif

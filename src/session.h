@@ -1,4 +1,4 @@
-#ifndef SESSION_H
+#ifndef RMPG_SESSION_H
 
 #include "lst.h"
 #include "channel.h"
@@ -15,5 +15,5 @@ enum RmpgErr session_init(struct Session *sess);
 void session_destroy(struct Session *sess);
 enum RmpgErr rmpg_session_subscribe(struct Session *sess, struct Channel *world);
 
-#define SESSION_H
+#define RMPG_SESSION_H
 #endif

@@ -5,6 +5,7 @@
 #include "evt_mgr.h"
 #include "session.h"
 #include "channel.h"
+#include "http.h"
 
 void rmpg_init(int argc, char **argv);
 void rmpg_loop(void);

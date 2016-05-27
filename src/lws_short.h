@@ -1,4 +1,4 @@
-#ifndef LWS_SHORT_H
+#ifndef RMPG_LWS_SHORT_H
 
 #include <libwebsockets.h>
 
@@ -16,5 +16,5 @@ typedef enum libwebsocket_callback_reasons lws_callback_reasons;
 #define lws_context_destroy libwebsocket_context_destroy
 #define lws_write libwebsocket_write 
 
-#define LWS_SHORT_H
+#define RMPG_LWS_SHORT_H
 #endif

@@ -1,4 +1,4 @@
-#ifndef DEFS_H
+#ifndef RMPG_DEFS_H
 
 #define DEBUG 1
 #define MAX_MESSAGE_QUEUE 32
@@ -23,5 +23,5 @@
 		} \
 	} while (0)
 
-#define DEFS_H
+#define RMPG_DEFS_H
 #endif

@@ -30,8 +30,8 @@ static lws_protocols protocols[] = {
 	{
 		"http-only",		/* name */
 		http_callback,		/* callback */
-		0,	/* per_session_data_size */
-		0,	/* max frame size / rx buffer */
+		65536,	/* per_session_data_size */
+		65536,	/* max frame size / rx buffer */
 	},
 	{
 		"lws-rmpg-protocol",
@@ -285,6 +285,7 @@ void parse_opts(int argc, char **argv) {
 void rmpg_init(int argc, char **argv) {
 	parse_opts(argc, argv);
 	evt_mgr_init();
+	http_init();
 
 	debug("Rampage initialized, debugging...\n");
 

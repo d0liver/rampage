@@ -1,4 +1,4 @@
-#ifndef ERR_H
+#ifndef RMPG_ERR_H
 #include <stdarg.h>
 
 enum RmpgErr {
@@ -22,5 +22,5 @@ enum RmpgErr {
 
 void debug (const char *format, ...);
 
-#define ERR_H
+#define RMPG_ERR_H
 #endif

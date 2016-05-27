@@ -1,4 +1,4 @@
-#ifndef CHANNEL_H
+#ifndef RMPG_CHANNEL_H
 
 #include <libwebsockets.h>
 
@@ -37,5 +37,5 @@ struct ChannelHandle {
 
 struct Channel *channel_init(void);
 
-#define CHANNEL_H
+#define RMPG_CHANNEL_H
 #endif

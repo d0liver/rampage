@@ -1,4 +1,4 @@
-#ifndef EVENT_MGR_H
+#ifndef RMPG_EVENT_MGR_H
 
 #include "channel.h"
 #include "session.h"
@@ -15,5 +15,5 @@ enum RmpgErr rmpg_evt_mgr_emit(
 	const char *evt, const char *buff,
 	struct ChannelHandle **handles, int num_handles
 );
-#define EVENT_MGR_H
+#define RMPG_EVENT_MGR_H
 #endif

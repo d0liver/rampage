@@ -12,18 +12,17 @@
 #define NUM_ROUTES_INC 16
 
 static struct HttpContext http_ctx;
+struct Extension extensions[] = {
+	{".ico", "image/x-icon"},
+	{".png", "image/png"},
+	{".html", "text/html"},
+	{".css", "text/css"},
+	{".js", "text/javascript"},
+	{".ttf", "application/octet-stream"}
+};
 
-static char *get_mimetype(const char *fname)
-{
+static char *get_mimetype(const char *fname) {
 	int len = strlen(fname), i;
-	struct Extension extensions[] = {
-		{".ico", "image/x-icon"},
-		{".png", "image/png"},
-		{".html", "text/html"},
-		{".css", "text/css"},
-		{".js", "text/javascript"},
-		{".ttf", "application/octet-stream"}
-	};
 
 	if (len < 5)
 		return NULL;
@@ -64,11 +63,6 @@ char *verify_path(const char *parent_path, const char *child_path) {
  * and value so this is just a guess "fudge factor" */
 #define HEADER_FUDGE 5
 
-#define send_response_cleanup() \
-	do { \
-		free(mimetype); \
-	} while (0)
-
 static enum RmpgErr send_file_response(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
@@ -88,26 +82,23 @@ static enum RmpgErr send_file_response(
 			context, wsi,
 			HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE, NULL
 		);
-		send_response_cleanup();
 		return ERROR_UNSUPPORTED_MEDIA_TYPE;
 	}
 
+	debug("Mimetype: %s\n", mimetype);
 	/* Finally, serve out our file and headers */
-	result_code = libwebsockets_serve_http_file(
+	libwebsockets_serve_http_file(
 		context, wsi, response->resource_path,
-		mimetype, headers, len_headers
+		mimetype, NULL, 0
 	);
 
 	if (
 		result_code < 0 ||
 		((result_code > 0) && lws_http_transaction_completed(wsi))
-	) {
+	)
 		/* error or can't reuse connection: close the socket */
-		send_response_cleanup();
 		return ERROR_CANT_REUSE;
-	}
 
-	send_response_cleanup();
 	return OK;
 }
 
@@ -245,24 +236,25 @@ static enum RmpgErr set_file_headers(
 	return OK;
 }
 
-enum RmpgErr route(struct HttpResponse **response, const char *in) {
+struct HttpResponse *route(const char *in) {
 	int i;
 	enum RmpgErr status;
+	struct HttpResponse *response;
 
 	if (http_ctx.num_routes == 0)
-		return ERROR_NO_REGISTERED_ROUTES;
+		/* TODO: This should actually return a 404 response. */
+		return NULL;
 
 	/* Iterate over our routes and see if any of them can handle the request */
 	for (i = 0; i < http_ctx.num_routes; ++i) {
-		status = http_ctx.routes[i](in, response);
-		/* Here, either we found the route and maybe some error occurred.
-		 * Either way we're finished looking. */
-		if (status != ERROR_ROUTE_NOT_FOUND)
-			return status;
+		response = http_ctx.routes[i](in);
+
+		if (response)
+			return response;
 	}
 
-	/* TODO: Maybe return something else? */
-	return ERROR_ROUTE_NOT_FOUND;
+	/* TODO: This should actually return a 404 response.*/
+	return NULL;
 }
 
 static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
@@ -281,70 +273,61 @@ static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
 	return full_uri;
 }
 
-#define http_request_cleanup() \
-	do { \
-		*response = NULL; \
-	} while (0)
-
-enum RmpgErr http_request(
+struct HttpResponse *http_request(
 	struct libwebsocket_context *context,
 	struct libwebsocket *wsi,
 	void *user,
-	void *in, size_t len,
-	/* We hand this back because we need to free it when we're notified that
-	 * the transfer is complete */
-	struct HttpResponse **response
+	void *in, size_t len
 ) {
 	int i, len_headers;
 	char *headers, *mimetype, *request_uri, *tmp;
 	enum RmpgErr status;
+	struct HttpResponse *response;
 	long arglen;
 
 	tmp = rebuild_full_uri(wsi, in);
-	if (tmp)
-		request_uri = tmp;
-	else
-		request_uri = in;
+	request_uri = (tmp)? tmp : in;
+	debug("Request URI: %s\n", request_uri);
 
 	if (len < 1) {
 		libwebsockets_return_http_status(
 			context, wsi,
 			HTTP_STATUS_BAD_REQUEST, NULL
 		);
-		http_request_cleanup();
-		return ERROR_BAD_REQUEST;
+		return NULL;
 	}
 
-	status = route(response, request_uri);
-	if (status != ROUTE_FOUND)
-		return status;
+	response = route(request_uri);
+	debug("Resolved resource path: %s\n", response->resource_path);
 
-	if ((*response)->resource_path) {
+	if (response->resource_path) {
 		status = set_file_headers(
-			context,wsi, *response,
+			context, wsi, response,
 			&headers, &len_headers
 		);
-		if (status != OK) {
-			http_request_cleanup();
-			return status;
-		}
+
+		if (status != OK)
+			/* FIXME: Should return an internal server error */
+			return NULL;
 
 		status = send_file_response(
-			context, wsi, *response,
+			context, wsi, response,
 			headers, len_headers
 		);
 	}
-	else if ((*response)->redirect_location){
+	else if (response->redirect_location) {
 		/* TODO: This is a headers only response which allows us to also send
 		 * back a status. It's unfortunate that this is being handled totally
 		 * separately at the moment. */
-		if(status = send_redirect_response(context, wsi, *response))
-			return status;
+		if(status = send_redirect_response(context, wsi, response))
+			/* FIXME: Should return an internal server error */
+			return NULL;
 	}
 
 	if (tmp)
 		free(request_uri);
-	return OK;
+
+	return response;
 }
 
 static enum RmpgErr try_to_reuse(struct libwebsocket *wsi) {
@@ -364,28 +347,21 @@ int http_callback(
 	enum libwebsocket_callback_reasons reason, void *user,
 	void *in, size_t len
 ) {
-	enum RmpgErr result;
 	struct HttpSession *usr = user;
 
 	if (reason == LWS_CALLBACK_HTTP) {
-		result = http_request(context, wsi, usr, in, len, &(usr->response));
-		if (result != OK)
-			fprintf(
-				stderr, "Error requesting: %s\n",
-				usr->response->resource_path
-			);
+		/* FIXME: Could be OOM */
+		usr->response = http_request(context, wsi, usr, in, len);
 	}
 	else if (reason == LWS_CALLBACK_HTTP_FILE_COMPLETION) {
-		/* Cleanup the http response from the route */
-		destroy_http_response(usr->response);
-		/* kill the connection after we sent one file */
-		return try_to_reuse(wsi);
+		/* Kill the connection after we sent one file */
+		try_to_reuse(wsi);
 	}
 
 	return 0;
 }
 
-enum RmpgErr http_init() {
+enum RmpgErr http_init(void) {
 	if(!(http_ctx.routes = malloc(NUM_ROUTES_INC)))
 		return ERROR_OUT_OF_MEMORY;
 
@@ -394,21 +370,7 @@ enum RmpgErr http_init() {
 	return OK;
 }
 
-enum RmpgErr http_destroy() {
-	int i;
-	/* Free all of the route callbacks */
-	for (i = 0; http_ctx.num_routes; ++i)
-		free(http_ctx.routes[i]);
-
-	return OK;
-}
-
-enum RmpgErr register_route(
-	enum RmpgErr (*route)(
-		const char *request_uri,
-		struct HttpResponse **response
-	)
-) {
+enum RmpgErr register_route(Route *route) {
 	int route_alloc_size =
 		(http_ctx.num_routes + NUM_ROUTES_INC) & ~NUM_ROUTES_INC;
 	if (http_ctx.num_routes >= route_alloc_size)
@@ -421,27 +383,28 @@ enum RmpgErr register_route(
 	return OK;
 }
 
-enum RmpgErr init_http_response(struct HttpResponse **response_to_init) {
-	*response_to_init = malloc(sizeof(struct HttpResponse));
-	if (!*response_to_init)
-		return ERROR_OUT_OF_MEMORY;
-	(*response_to_init)->resource_path = NULL;
-	(*response_to_init)->redirect_location = NULL;
-	(*response_to_init)->num_headers = 0;
-	(*response_to_init)->headers = NULL;
-	(*response_to_init)->status = 200;
+struct HttpResponse *init_http_response(void) {
+	struct HttpResponse *response = malloc(sizeof(struct HttpResponse));
+	if (!response)
+		return NULL;
+	response->resource_path = NULL;
+	response->redirect_location = NULL;
+	response->num_headers = 0;
+	response->headers = NULL;
+	response->status = 200;
 
-	return OK;
+	return response;
 }
 
-enum RmpgErr destroy_http_response(struct HttpResponse *response_to_free) {
+void destroy_http_response(struct HttpResponse *response) {
 	int i;
 
-	if (response_to_free->resource_path)
-		free(response_to_free->resource_path);
-	if (response_to_free->redirect_location)
-		free(response_to_free->redirect_location);
-	for (i = 0; i < response_to_free->num_headers; ++i)
-		free(response_to_free->headers + i);
-	free(response_to_free);
+	if (response->resource_path)
+		free(response->resource_path);
+	if (response->resource_path)
+	if (response->redirect_location)
+		free(response->redirect_location);
+	for (i = 0; i < response->num_headers; ++i)
+		free(response->headers + i);
+	free(response);
 }
