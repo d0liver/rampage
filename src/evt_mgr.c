@@ -19,10 +19,12 @@ static struct List *evt_maps;
 static void notify(struct Session *sess, const char *type, const char *buff) {
 	int i;
 
+	debug("Notifying event handlers for type %s\n", type);
 	/* Call each event handler registered for the event. */
 	for (i = 0; i < evt_maps->num_elems; ++i) {
 		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
 
+		debug("Event map type: %s\n", map->evt);
 		if (!strcmp(map->evt, type)) {
 			debug("Firing event: %s, %s\n", map->evt, type);
 			map->handle(sess, buff, map->cb_data);
@@ -85,6 +87,7 @@ enum RmpgErr rmpg_evt_mgr_on(
 	map->handle = handle;
 	map->cb_data = cb_data;
 
+	debug("Registered event: %s\n", map->evt);
 	lst_append(evt_maps, map, 0);
 
 	return OK;
@@ -100,18 +103,22 @@ enum RmpgErr evt_mgr_receive(struct Session *sess, char *buff, size_t len) {
 	char *payload, *type;
 
 	debug("Event manager received.\n");
-	if(!(root = json_loads(buff, 0, &err)))
-		return ERROR_JSON_PARSE;
 
-	if (json_unpack(
-		root, "{s: {s: s}, s:s}",
+	if(!(root = json_loads(buff, 0, &err))) {
+		debug("Failed to parse.\n");
+		return ERROR_JSON_PARSE;
+	}
+
+	debug("Parsing: %s\n", buff);
+	if (i = json_unpack_ex(
+		root, &err, 0, "{s: {s: s}, s:s}",
 		"event",
 			"type", &type,
 		"payload", &buff
-	))
+	)) {
+		debug("Failed to unpack: %s\n", err.text);
 		return ERROR_JSON_PARSE;
-
-	debug("Event Manager received part: %s\n", buff);
+	}
 
 	notify(sess, type, buff);
 

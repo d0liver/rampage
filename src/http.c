@@ -18,6 +18,7 @@ struct Extension extensions[] = {
 	{".html", "text/html"},
 	{".css", "text/css"},
 	{".js", "text/javascript"},
+	{".map", "text/javascript"},
 	{".ttf", "application/octet-stream"}
 };
 
@@ -85,7 +86,7 @@ static enum RmpgErr send_file_response(
 		return ERROR_UNSUPPORTED_MEDIA_TYPE;
 	}
 
-	debug("Mimetype: %s\n", mimetype);
+	http_debug("Mimetype: %s\n", mimetype);
 	/* Finally, serve out our file and headers */
 	libwebsockets_serve_http_file(
 		context, wsi, response->resource_path,
@@ -287,7 +288,7 @@ struct HttpResponse *http_request(
 
 	tmp = rebuild_full_uri(wsi, in);
 	request_uri = (tmp)? tmp : in;
-	debug("Request URI: %s\n", request_uri);
+	http_debug("Request URI: %s\n", request_uri);
 
 	if (len < 1) {
 		libwebsockets_return_http_status(
@@ -298,7 +299,7 @@ struct HttpResponse *http_request(
 	}
 
 	response = route(request_uri);
-	debug("Resolved resource path: %s\n", response->resource_path);
+	http_debug("Resolved resource path: %s\n", response->resource_path);
 
 	if (response->resource_path) {
 		status = set_file_headers(
