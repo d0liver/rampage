@@ -13,6 +13,7 @@
 #include <libwebsockets.h>
 
 /* Local includes */
+#include "read_ini.h"
 #include "err.h"
 #include "http.h"
 #include "evt_mgr.h"
@@ -22,6 +23,18 @@
 #include "channel.h"
 #include "session.h"
 
+static struct RampageOptions {
+	char cert_path[1024], key_path[1024], interface_name[128];
+	int n, use_ssl, opts;
+	const char *iface;
+	int syslog_options;
+	int debug_level;
+	int daemonize;
+} rmpg_opts = {
+	.interface_name = "",
+	.debug_level = 7,
+	.syslog_options = LOG_PID | LOG_PERROR
+};
 static int callback_lws_rmpg(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
 static struct Channel *world;
 
@@ -45,7 +58,7 @@ static lws_protocols protocols[] = {
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
 static struct Channel *world;
-static struct lws_context_creation_info info;
+static struct lws_context_creation_info info = {.port = 7681};
 static char *resource_path;
 static struct option long_opts[] = {
 	{ "help",	no_argument,		NULL, 'h' },
@@ -192,104 +205,97 @@ static int callback_lws_rmpg (
 	return 0;
 }
 
-void parse_opts(int argc, char **argv) {
-	char cert_path[1024], key_path[1024], interface_name[128] = {'\0'};
-	int n = 0, use_ssl = 0, opts = 0;
-	const char *iface = NULL;
-	int syslog_options = LOG_PID | LOG_PERROR;
-	int debug_level = 7;
-	int daemonize = 0;
-
-	info.port = 7681;
-
-	do {
-		n = getopt_long(argc, argv, short_opts, long_opts, NULL);
-
-		switch (n) {
-			case 'e':
-				opts |= LWS_SERVER_OPTION_LIBEV;
-				break;
-			case 'D':
-				daemonize = 1;
-				break;
-			case 'd':
-				debug_level = atoi(optarg);
-				break;
-			case 's':
-				use_ssl = 1;
-				break;
-			case 'a':
-				opts |= LWS_SERVER_OPTION_ALLOW_NON_SSL_ON_SSL_PORT;
-				break;
-			case 'p':
-				info.port = atoi(optarg);
-				break;
-			case 'i':
-				strncpy(interface_name, optarg, sizeof interface_name);
-				interface_name[(sizeof interface_name) - 1] = '\0';
-				iface = interface_name;
-				break;
-			case 'r':
-				resource_path = optarg;
-				printf("Setting resource path to \"%s\"\n", resource_path);
-				break;
-			case 'h':
-				fprintf(stderr, "Usage: test-server "
-						"[--port=<p>] [--ssl] "
-						"[-d <log bitfield>] "
-						"[--resource_path <path>]\n");
-				exit(1);
-		}
-	} while (n >= 0);
-
-	/* signal(SIGINT, sighandler); */
-
-	/* we will only try to log things according to our debug_level */
+void init_context(void) {
+	debug("Build context...\n");
+	/* We will only try to log things according to our debug_level */
 	setlogmask(LOG_UPTO (LOG_DEBUG));
-	openlog("lwsts", syslog_options, LOG_DAEMON);
+	openlog("lwsts", rmpg_opts.syslog_options, LOG_DAEMON);
 
 	/* tell the library what debug level to emit and to send it to syslog */
-	lws_set_log_level(debug_level, lwsl_emit_syslog);
+	lws_set_log_level(rmpg_opts.debug_level, lwsl_emit_syslog);
 
 	/* TODO: Include license/copyright info. */
 	debug("Rampage websockets server..\n");
 
-	info.iface = iface;
+	info.iface = rmpg_opts.iface;
 	info.protocols = protocols;
 	info.extensions = libwebsocket_get_internal_extensions();
-	if (!use_ssl) {
+	if (!rmpg_opts.use_ssl) {
 		info.ssl_cert_filepath = NULL;
 		info.ssl_private_key_filepath = NULL;
 	}
 	else {
-		if (strlen(resource_path) > sizeof(cert_path) - 32)
+		if (strlen(resource_path) > sizeof(rmpg_opts.cert_path) - 32)
 			lwsl_err("resource path too long\n");
-		sprintf(cert_path, "%s/libwebsockets-test-server.pem",
+		sprintf(rmpg_opts.cert_path, "%s/libwebsockets-test-server.pem",
 				resource_path);
-		if (strlen(resource_path) > sizeof(key_path) - 32)
+		if (strlen(resource_path) > sizeof(rmpg_opts.key_path) - 32)
 			lwsl_err("resource path too long\n");
-		sprintf(key_path, "%s/libwebsockets-test-server.key.pem",
+		sprintf(rmpg_opts.key_path, "%s/libwebsockets-test-server.key.pem",
 				resource_path);
 
-		info.ssl_cert_filepath = cert_path;
-		info.ssl_private_key_filepath = key_path;
+		info.ssl_cert_filepath = rmpg_opts.cert_path;
+		info.ssl_private_key_filepath = rmpg_opts.key_path;
 	}
 	info.gid = -1;
 	info.uid = -1;
-	info.options = opts;
+	info.options = rmpg_opts.opts;
 
 	context = libwebsocket_create_context(&info);
 	if (context == NULL)
 		lwsl_err("libwebsocket init failed\n");
 }
 
+/* Handle the config options from rampage.ini */
+void config_handler(struct Option *opt) {
+
+	/*
+	 * If opt is NULL then we are finished parsing options so we can build the
+	 * context from it.
+	 */
+	if (!opt) {
+		init_context(/* uses rmpg_opts */);
+		return;
+	}
+	if (!strcmp(opt->key, "libev"))
+		rmpg_opts.opts |= LWS_SERVER_OPTION_LIBEV;
+	else if(!strcmp(opt->key, "daemonize"))
+		rmpg_opts.daemonize = 1;
+	else if (!strcmp(opt->key, "debug_level"))
+		rmpg_opts.debug_level = atoi(opt->value);
+	else if (!strcmp(opt->key, "use_ssl"))
+		rmpg_opts.use_ssl = 1;
+	else if (!strcmp(opt->key, "allow_ssl_on_non_ssl_port"))
+		rmpg_opts.opts |= LWS_SERVER_OPTION_ALLOW_NON_SSL_ON_SSL_PORT;
+	else if (!strcmp(opt->key, "port"))
+		info.port = atoi(opt->value);
+	else if (!strcmp(opt->key, "interface_name")) {
+		strncpy(rmpg_opts.interface_name, opt->value, sizeof(rmpg_opts.interface_name));
+		/* In case of truncation. */
+		rmpg_opts.interface_name[sizeof(rmpg_opts.interface_name) - 1] = '\0';
+		rmpg_opts.iface = rmpg_opts.interface_name;
+	}
+	else if (!strcmp(opt->key, "resource_path")) {
+		resource_path = opt->value;
+		printf("Setting resource path to \"%s\"\n", resource_path);
+	}
+}
+
 void rmpg_init(int argc, char **argv) {
-	parse_opts(argc, argv);
+	/* First, read the config */
+	FILE *fp = fopen("rampage.ini", "rb");
+
+	if (!fp) {
+		/* FIXME: Error handling */
+		debug("An error occurred opening the config file.\n");
+		return;
+	}
+	read_config(fp, config_handler);
+
 	evt_mgr_init();
 	http_init();
 
 	debug("Rampage initialized, debugging...\n");
-	http_debug("Poop test\n");
 
 	/* FIXME: What's the best recovery option here? */
 	if(!(world = channel_init())) {
