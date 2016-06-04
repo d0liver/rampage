@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "defs.h"
 #include "message_q.h"
 
 /*********** Private Utils ***********/
@@ -38,7 +39,14 @@ static long assemble(struct MessageQ *msg_q, struct Node *n, char *buff) {
 /* Destroy the node n and return its next elem */
 static inline struct Node *destroy_node(struct MessageQ *msg_q, struct Node *n) {
 	struct Node *next = n->next;
-	debug("Freeing payload: %s\n", n->payload);
+	char *tmp;
+	if (DEBUG) {
+		/* If we are debugging then we want to show the freed payload so we
+		 * need to put a null term on it */
+		tmp = malloc(n->payload_size + 1);
+		tmp[n->payload_size] = '\0';
+		debug("Freeing payload: %s\n", n->payload);
+	}
 	msg_q->bytes -= n->payload_size;
 	free(n->payload);
 	free(n);

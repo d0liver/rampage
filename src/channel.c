@@ -108,6 +108,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * There may be nodes that can be freed now (if we were the last one in the
 	 * channel to use the nodes that we just released)
      */
+	/* TODO: Fix this segfault so nodes are freed once our message is sent */
 	/* check_free(handle->channel); */
 	free(buff - LWS_SEND_BUFFER_PRE_PADDING);
 
