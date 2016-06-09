@@ -8,6 +8,9 @@
 #include "evt_mgr.h"
 #include "err.h"
 
+void (*default_handler)(const char *, struct Session *, const char *, void *);
+void *default_cb_data;
+
 struct EvtMap {
 	const char *evt;
 	void *cb_data;
@@ -28,8 +31,14 @@ static void notify(struct Session *sess, const char *type, const char *buff) {
 		if (!strcmp(map->evt, type)) {
 			debug("Firing event: %s, %s\n", map->evt, type);
 			map->handle(sess, buff, map->cb_data);
+			return;
 		}
 	}
+	/*
+	 * There was no handler for the event type. We will call the handler
+	 * default_handler.
+	 */
+	default_handler(type, sess, buff, default_cb_data);
 }
 
 enum RmpgErr evt_mgr_init(void) {
@@ -71,6 +80,15 @@ enum RmpgErr rmpg_evt_mgr_emit(
 /* We have been informed that the session has connected */
 void evt_mgr_connected(struct Session *sess) {
 	notify(sess, "connected", NULL);
+}
+
+/* Set the handler that will be called when no other handler is found */
+void rmpg_evt_mgr_on_default(
+	void (*handler)(const char *, struct Session *, const char *, void *),
+	void *cb_data
+) {
+	default_handler = handler;
+	default_cb_data = cb_data;
 }
 
 enum RmpgErr rmpg_evt_mgr_on(

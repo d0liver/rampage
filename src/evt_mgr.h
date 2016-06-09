@@ -15,5 +15,9 @@ enum RmpgErr rmpg_evt_mgr_emit(
 	const char *evt, const char *buff,
 	struct ChannelHandle **handles, int num_handles
 );
+void rmpg_evt_mgr_on_default(
+	void (*)(const char *, struct Session *, const char *, void *),
+	void *
+);
 #define RMPG_EVENT_MGR_H
 #endif
