@@ -20,6 +20,10 @@ struct List *lst_init(int grow_by) {
 	return lst;
 }
 
+void *lst_last_elem(struct List *lst) {
+	return lst->items[lst->num_elems - 1];
+}
+
 int lst_append(struct List *lst, void *elem, int cp_size) {
 	int size = (lst->num_elems + (lst->grow_by - 1)) & ~(lst->grow_by - 1);
 

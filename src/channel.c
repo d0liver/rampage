@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <libwebsockets.h>
 
+#include "err.h"
 #include "channel.h"
 
 /* Get a handle for the channel. A handle is basically a reference that a user
@@ -29,6 +30,7 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 	return handle;
 }
 
+/* FIXME: check_free is broken and causes segfault currently */
 /* Assemble a message from the queue so that we can try to send it */
 static void check_free(struct Channel *ch) {
 	struct MessageQ *msg_q = ch->msg_q;
@@ -56,29 +58,30 @@ done:
 /* Assemble and flush messages to the user. */
 static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	struct MessageQ *msg_q = handle->channel->msg_q;
-	int bytes_written, bytes_assemble;
+	int bytes_written;
 	char *buff;
 
-	debug("Called flush...\n");
-	/* Get the number of bytes for the buffer */
-	bytes_assemble = msg_q->assemble(msg_q, handle->head, NULL);
+	debug("Called flush.\n");
+
     /*
 	 * FIXME: Why are we getting callbacks when there are no messages to send?
      */
-	if(!bytes_assemble)
+	if(handle->head == msg_q->tail) {
+		printf("No messages to send.\n");
+		debug("No messages to send.\n");
 		return OK;
-
-	debug("Bytes to be assembled: %d\n", bytes_assemble);
+	}
 
 	if(!(buff = malloc(
-		bytes_assemble +
+		msg_q->head->payload_size +
 		LWS_SEND_BUFFER_PRE_PADDING +
-		LWS_SEND_BUFFER_POST_PADDING
+		LWS_SEND_BUFFER_POST_PADDING + 1
 	)))
 		return ERROR_OUT_OF_MEMORY;
 
 	buff += LWS_SEND_BUFFER_PRE_PADDING;
 
+	memcpy(buff, handle->head->payload, handle->head->payload_size);
     /*
 	 * TODO: It's actually not necessary to assemble here. We can just call
 	 * write multiple times with whatever we have available. However, if we do
@@ -87,22 +90,23 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * shitty design). Maybe ideas in the future will be better? It would be
 	 * nice, maybe, if we didn't need to move this data to send it.
      */
-	msg_q->assemble(msg_q, handle->head, buff);
-	debug("Assembled send payload: %s\n", buff);
+	debug("Send payload: %s\n", term(handle->head->payload, handle->head->payload_size));
+	printf("Payload: %s\n", term(handle->head->payload, handle->head->payload_size));
 
-	bytes_written = lws_write (wsi, buff, bytes_assemble, LWS_WRITE_TEXT);
+	bytes_written =
+		lws_write (wsi, buff, handle->head->payload_size, LWS_WRITE_TEXT);
 
 	if (bytes_written < 0)
 		return ERROR_WRITING_TO_SOCKET;
 	/* FIXME: Maybe we should try again? */
-	else if (bytes_written < bytes_assemble)
+	else if (bytes_written < handle->head->payload_size)
 		return ERROR_PARTIAL_WRITE;
 
     /*
 	 * The write was successful, we can go ahead and update our head
 	 * (indicating that we no longer need those nodes)
      */
-	handle->head = handle->channel->msg_q->tail;
+	handle->head = handle->head->next;
 
     /*
 	 * There may be nodes that can be freed now (if we were the last one in the
@@ -117,8 +121,6 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 
 /* Add the payload to the queue to be sent later */
 static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize) {
-	/* The node to be added */
-	struct Node *n;
 	struct MessageQ *msg_q = handle->channel->msg_q;
 
 	debug("Channel received.\n");

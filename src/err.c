@@ -48,3 +48,16 @@ void http_debug (const char *format, ...)
 {
 }
 #endif
+
+/* Copy in to a new buffer and add a nullterm at size */
+char *term(char *in, long size) {
+	char *out = malloc(size + 1);
+
+	if (!out)
+		return NULL;
+
+	memcpy(out, in, size);
+	out[size] = '\0';
+
+	return out;
+}

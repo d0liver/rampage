@@ -1,6 +1,6 @@
 #ifndef RMPG_DEFS_H
 
-#define DEBUG 1
+#define DEBUG 0
 #define HTTP_DEBUG 0 
 #define MAX_MESSAGE_QUEUE 32
 #define MAX_SLOTS 100

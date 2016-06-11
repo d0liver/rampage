@@ -23,15 +23,19 @@ static struct Node *empty_node(void) {
  * should be large enough to fit the contents). */
 static long assemble(struct MessageQ *msg_q, struct Node *n, char *buff) {
 	long bytes = 0;
+	char *tmp = buff;
 
 	while (n != msg_q->tail) {
-		debug("Assemble part: %s\n", n->payload);
-		debug("Assemble part size: %ld\n", n->payload_size);
+		/* debug("Assemble part: %s\n", n->payload); */
+		/* debug("Assemble part size: %ld\n", n->payload_size); */
 		if (buff)
 			buff = memcpy(buff, n->payload, n->payload_size) + n->payload_size;
 		bytes += n->payload_size;
 		n = n->next;
 	}
+
+	if (buff)
+		buff[0] = '\0';
 
 	return bytes;
 }
@@ -45,7 +49,8 @@ static inline struct Node *destroy_node(struct MessageQ *msg_q, struct Node *n) 
 		 * need to put a null term on it */
 		tmp = malloc(n->payload_size + 1);
 		tmp[n->payload_size] = '\0';
-		debug("Freeing payload: %s\n", n->payload);
+		/* TODO: Add nullterm to this debug */
+		/* debug("Freeing payload: %s\n", n->payload); */
 	}
 	msg_q->bytes -= n->payload_size;
 	free(n->payload);

@@ -128,7 +128,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 		char *buff;
 
 		/* Allocate a buffer to assemble the full message into */
-		if(!(buff = malloc(sess->pending->bytes + len)))
+		if(!(buff = malloc(sess->pending->bytes + len + 1)))
 			return -1;
 
 		sess->pending->append(sess->pending, in, len);
@@ -145,7 +145,6 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 		 * Do useful things! We have a message now and we can do things with it
 		 * (like send it to a channel for other users to look at).
          */
-		/* event_mgr->handle(buff); */
 		debug("Assembled message, passing off to event manager.\n");
 		evt_mgr_receive(sess, buff, len);
 
