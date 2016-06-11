@@ -90,14 +90,14 @@ enum RmpgErr rmpg_on(
 static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	int i;
 
-	debug("Writeable, num ch handles: %d\n", sess->ch_handles->num_elems);
     /*
 	 * Send all of the messages that are waiting in each channel (from everyone
 	 * else to us)
      */
 	for (i = 0; i < sess->ch_handles->num_elems; ++i) {
 		struct ChannelHandle *h = sess->ch_handles->items[i];
-		h->channel->flush(h, wsi);
+		if(h->channel->flush(h, wsi) == ERROR_OUT_OF_MEMORY)
+			goto out_of_memory;
 	}
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
@@ -110,6 +110,11 @@ static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	 * needed to stop chrome from choking.
 	 */
 	usleep(1);
+
+	return 0;
+
+out_of_memory:
+	fprintf(stderr, "Out of memory.\n");
 	return 0;
 }
 
@@ -119,9 +124,6 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 	/* TODO: When should we start dropping? */
 	/* lwss_rx_flow_control(wsi, 0); */
 
-	debug("Rampage received: %s\n", (char *) in);
-	debug("Rampage remaining: %d\n", (int) remaining);
-
 	/* Message is finished. */
 	if (!remaining && lws_is_final_fragment(wsi))
 	{
@@ -129,26 +131,25 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 
 		/* Allocate a buffer to assemble the full message into */
 		if(!(buff = malloc(sess->pending->bytes + len + 1)))
-			return -1;
+			goto out_of_mem;
 
-		sess->pending->append(sess->pending, in, len);
-		debug("Attempt to assemble the message.\n");
+		if(!sess->pending->append(sess->pending, in, len))
+			goto out_of_mem;
+
 		/* Assemble the whole message */
 		sess->pending->assemble(
 			sess->pending,
 			sess->pending->head,
 			buff
 		);
-		debug("Prune now unused nodes.\n");
 
         /*
 		 * Do useful things! We have a message now and we can do things with it
 		 * (like send it to a channel for other users to look at).
          */
-		debug("Assembled message, passing off to event manager.\n");
-		evt_mgr_receive(sess, buff, len);
+		if(evt_mgr_receive(sess, buff, len) == ERROR_JSON_PARSE)
+			goto json_parse_fail;
 
-		debug("Scheduled write callback.\n");
 		lws_callback_on_writeable(ctx, wsi);
 
         /*
@@ -159,15 +160,29 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 		sess->pending->prune(sess->pending, sess->pending->tail);
 	}
 	/* Only got a partial message. */
-	else
-		sess->pending->append(sess->pending, in, len);
+	else if(!sess->pending->append(sess->pending, in, len))
+		goto out_of_mem;
+
+	return 0;
+
+out_of_mem:
+	fprintf(stderr, "Out of memory.\n");
+	return 0;
+
+json_parse_fail:
+	fprintf(stderr, "Failed to parse incoming json request.\n");
+	return 0;
 }
 
 static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
-	debug("Initializing session...\n");
-	session_init(sess);
+	if(session_init(sess) == ERROR_OUT_OF_MEMORY)
+		goto out_of_memory;
 
-	lwsl_info("callback_lws_rmpg: LWS_CALLBACK_ESTABLISHED\n");
+	return;
+
+out_of_memory:
+	fprintf(stderr, "Out of memory.\n");
+	return;
 }
 
 static int callback_lws_rmpg (
@@ -189,7 +204,7 @@ static int callback_lws_rmpg (
 			break;
 
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
-			debug("Cleaning up\n");
+			fprintf(stderr, "Cleaning up.\n");
 			break;
 
 		case LWS_CALLBACK_RECEIVE:

@@ -82,9 +82,8 @@ static void prune(struct MessageQ *msg_q, struct Node *n) {
  * Returns a pointer to the new empty node (new tail) or NULL if unsuccessful.
  */
 static struct Node *append(struct MessageQ *msg_q, char *payload, long psize) {
-	struct Node *empt;
+	struct Node *empt, *new;
 
-	debug("MessageQ append.\n");
 	if (!(empt = empty_node()))
 		return NULL;
 
@@ -94,13 +93,14 @@ static struct Node *append(struct MessageQ *msg_q, char *payload, long psize) {
 	msg_q->tail->payload_size = psize;
 	msg_q->tail->next = empt;
 
+	new = msg_q->tail;
 	/* Now, move the tail to the new empty node */
 	msg_q->tail = empt;
 
 	/* Increase the byte count */
 	msg_q->bytes += psize;
 
-	return OK;
+	return new;
 }
 
 /* Append another list onto the end of this one. */

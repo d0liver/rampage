@@ -25,7 +25,7 @@ enum RmpgErr session_init(struct Session *sess) {
 	def_ch_handle = def_ch->handle(def_ch);
 	lst_append(sess->ch_handles, def_ch_handle, 0);
 
-	return 0;
+	return OK;
 }
 
 enum RmpgErr rmpg_session_subscribe(struct Session *sess, struct Channel *world) {

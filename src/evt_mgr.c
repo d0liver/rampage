@@ -120,23 +120,16 @@ enum RmpgErr evt_mgr_receive(struct Session *sess, char *buff, size_t len) {
 	json_error_t err;
 	char *payload, *type;
 
-	debug("Event manager received.\n");
-
-	if(!(root = json_loads(buff, 0, &err))) {
-		debug("Failed to parse.\n");
+	if(!(root = json_loads(buff, 0, &err)))
 		return ERROR_JSON_PARSE;
-	}
 
-	debug("Parsing: %s\n", buff);
 	if (i = json_unpack_ex(
 		root, &err, 0, "{s: {s: s}, s:s}",
 		"event",
 			"type", &type,
 		"payload", &buff
-	)) {
-		debug("Failed to unpack: %s\n", err.text);
+	))
 		return ERROR_JSON_PARSE;
-	}
 
 	notify(sess, type, buff);
 

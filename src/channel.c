@@ -66,11 +66,8 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
     /*
 	 * FIXME: Why are we getting callbacks when there are no messages to send?
      */
-	if(handle->head == msg_q->tail) {
-		printf("No messages to send.\n");
-		debug("No messages to send.\n");
+	if(handle->head == msg_q->tail)
 		return OK;
-	}
 
 	if(!(buff = malloc(
 		msg_q->head->payload_size +
@@ -90,8 +87,6 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	 * shitty design). Maybe ideas in the future will be better? It would be
 	 * nice, maybe, if we didn't need to move this data to send it.
      */
-	debug("Send payload: %s\n", term(handle->head->payload, handle->head->payload_size));
-	printf("Payload: %s\n", term(handle->head->payload, handle->head->payload_size));
 
 	bytes_written =
 		lws_write (wsi, buff, handle->head->payload_size, LWS_WRITE_TEXT);
