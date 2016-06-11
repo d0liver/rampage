@@ -22,14 +22,11 @@ static struct List *evt_maps;
 static void notify(struct Session *sess, const char *type, const char *buff) {
 	int i;
 
-	debug("Notifying event handlers for type %s\n", type);
 	/* Call each event handler registered for the event. */
 	for (i = 0; i < evt_maps->num_elems; ++i) {
 		struct EvtMap *map = (struct EvtMap *)evt_maps->items[i];
 
-		debug("Event map type: %s\n", map->evt);
 		if (!strcmp(map->evt, type)) {
-			debug("Firing event: %s, %s\n", map->evt, type);
 			map->handle(sess, buff, map->cb_data);
 			return;
 		}

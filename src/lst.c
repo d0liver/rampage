@@ -25,7 +25,9 @@ void *lst_last_elem(struct List *lst) {
 }
 
 int lst_append(struct List *lst, void *elem, int cp_size) {
-	int size = (lst->num_elems + (lst->grow_by - 1)) & ~(lst->grow_by - 1);
+	int size =
+		((lst->num_elems + (lst->grow_by - 1)) &
+		~(lst->grow_by - 1)) * sizeof(void *);
 
     /*
 	 * We will make a copy and put that into the list if we were requested to
@@ -41,7 +43,7 @@ int lst_append(struct List *lst, void *elem, int cp_size) {
 
 	/* Are we full? */
 	if (size == lst->num_elems) {
-		size += lst->grow_by;
+		size += lst->grow_by * sizeof(void *);
 		if (
 			!lst->num_elems && !(lst->items = malloc(size)) ||
 			lst->num_elems && !(lst->items = realloc(lst->items, size))

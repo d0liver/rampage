@@ -61,8 +61,6 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	int bytes_written;
 	char *buff;
 
-	debug("Called flush.\n");
-
     /*
 	 * FIXME: Why are we getting callbacks when there are no messages to send?
      */
@@ -70,7 +68,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 		return OK;
 
 	if(!(buff = malloc(
-		msg_q->head->payload_size +
+		handle->head->payload_size +
 		LWS_SEND_BUFFER_PRE_PADDING +
 		LWS_SEND_BUFFER_POST_PADDING + 1
 	)))
@@ -109,7 +107,7 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
      */
 	/* TODO: Fix this segfault so nodes are freed once our message is sent */
 	/* check_free(handle->channel); */
-	free(buff - LWS_SEND_BUFFER_PRE_PADDING);
+	/* free(buff - LWS_SEND_BUFFER_PRE_PADDING); */
 
 	return bytes_written;
 }

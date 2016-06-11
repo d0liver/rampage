@@ -198,7 +198,6 @@ static int callback_lws_rmpg (
 	switch (reason)
 	{
 		case LWS_CALLBACK_ESTABLISHED:
-			debug("Connection established.\n");
 			init(wsi, session, in, len);
 			evt_mgr_connected(sess);
 			break;
@@ -308,8 +307,6 @@ void rmpg_init(int argc, char **argv) {
 
 	evt_mgr_init();
 	http_init();
-
-	debug("Rampage initialized, debugging...\n");
 
 	/* FIXME: What's the best recovery option here? */
 	if(!(world = channel_init())) {
