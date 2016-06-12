@@ -6,8 +6,9 @@
 #include "session.h"
 #include "channel.h"
 #include "http.h"
+#include "read_ini.h"
 
-void rmpg_init(int argc, char **argv);
+void rmpg_init(void (*)(struct Option *));
 void rmpg_loop(void);
 void rmpg_cleanup(void);
 #define RAMPAGE_H

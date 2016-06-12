@@ -294,16 +294,18 @@ void config_handler(struct Option *opt) {
 	}
 }
 
-void rmpg_init(int argc, char **argv) {
+void rmpg_init(void (*user_config_handler)(struct Option *)) {
 	/* First, read the config */
 	FILE *fp = fopen("rampage.ini", "rb");
+	void (*handle_opt[])(struct Option *) =
+		{config_handler, user_config_handler, NULL};
 
 	if (!fp) {
 		/* FIXME: Error handling */
 		debug("An error occurred opening the config file.\n");
 		return;
 	}
-	read_config(fp, config_handler);
+	read_config(fp, handle_opt);
 
 	evt_mgr_init();
 	http_init();
