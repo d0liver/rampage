@@ -4,13 +4,15 @@
 #include "err.h"
 #include "channel.h"
 
-/* Get a handle for the channel. A handle is basically a reference that a user
+/*
+ * Get a handle for the channel. A handle is basically a reference that a user
  * can use to track what's going on in the channel. Since every user is likely
  * to be at a different place in terms of data that they need to fetch, we can
  * use this handle to keep track of which user we're dealing with. Note that
  * "user" here, just means some entity that's interested in the channel. It
  * could be something like an automated resource (notifications) and not a real
- * person. */
+ * person.
+ */
 static struct ChannelHandle *handle(struct Channel *ch) {
 	struct ChannelHandle *handle;
 
@@ -67,56 +69,58 @@ static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
 	if(handle->head == msg_q->tail)
 		return OK;
 
-	if(!(buff = malloc(
-		handle->head->payload_size +
-		LWS_SEND_BUFFER_PRE_PADDING +
-		LWS_SEND_BUFFER_POST_PADDING + 1
-	)))
-		return ERROR_OUT_OF_MEMORY;
+	while (handle->head != msg_q->tail) {
+		if(!(buff = malloc(
+			handle->head->payload_size +
+			LWS_SEND_BUFFER_PRE_PADDING +
+			LWS_SEND_BUFFER_POST_PADDING + 1
+		)))
+			return ERROR_OUT_OF_MEMORY;
 
-	buff += LWS_SEND_BUFFER_PRE_PADDING;
+		buff += LWS_SEND_BUFFER_PRE_PADDING;
 
-	memcpy(buff, handle->head->payload, handle->head->payload_size);
-    /*
-	 * TODO: It's actually not necessary to assemble here. We can just call
-	 * write multiple times with whatever we have available. However, if we do
-	 * things that way then we will need to move all of the data anyway because
-	 * it needs to be preceded with some padding for lws (this seems like a
-	 * shitty design). Maybe ideas in the future will be better? It would be
-	 * nice, maybe, if we didn't need to move this data to send it.
-     */
+		memcpy(buff, handle->head->payload, handle->head->payload_size);
+		/*
+		 * TODO: It's actually not necessary to assemble here. We can just call
+		 * write multiple times with whatever we have available. However, if we do
+		 * things that way then we will need to move all of the data anyway because
+		 * it needs to be preceded with some padding for lws (this seems like a
+		 * shitty design). Maybe ideas in the future will be better? It would be
+		 * nice, maybe, if we didn't need to move this data to send it.
+		 */
 
-	bytes_written =
-		lws_write (wsi, buff, handle->head->payload_size, LWS_WRITE_TEXT);
+		bytes_written =
+			lws_write (wsi, buff, handle->head->payload_size, LWS_WRITE_TEXT);
 
-	if (bytes_written < 0)
-		return ERROR_WRITING_TO_SOCKET;
-	/* FIXME: Maybe we should try again? */
-	else if (bytes_written < handle->head->payload_size)
-		return ERROR_PARTIAL_WRITE;
+		if (bytes_written < 0)
+			return ERROR_WRITING_TO_SOCKET;
+		/* FIXME: Maybe we should try again? */
+		else if (bytes_written < handle->head->payload_size)
+			return ERROR_PARTIAL_WRITE;
 
-    /*
-	 * The write was successful, we can go ahead and update our head
-	 * (indicating that we no longer need those nodes)
-     */
-	handle->head = handle->head->next;
+		/*
+		 * The write was successful, we can go ahead and update our head
+		 * (indicating that we no longer need those nodes)
+		 */
+		handle->head = handle->head->next;
 
-    /*
-	 * There may be nodes that can be freed now (if we were the last one in the
-	 * channel to use the nodes that we just released)
-     */
-	/* TODO: Fix this segfault so nodes are freed once our message is sent */
-	/* check_free(handle->channel); */
-	/* free(buff - LWS_SEND_BUFFER_PRE_PADDING); */
+		/*
+		 * There may be nodes that can be freed now (if we were the last one in the
+		 * channel to use the nodes that we just released)
+		 */
+		/* TODO: Fix this segfault so nodes are freed once our message is sent */
+		/* check_free(handle->channel); */
+		/* free(buff - LWS_SEND_BUFFER_PRE_PADDING); */
 
-	return bytes_written;
+	}
+
+	return OK;
 }
 
 /* Add the payload to the queue to be sent later */
 static enum RmpgErr snd(struct ChannelHandle *handle, char *payload, long psize) {
 	struct MessageQ *msg_q = handle->channel->msg_q;
 
-	debug("Channel received.\n");
 
 	if(msg_q->append(msg_q, payload, psize))
 		return ERROR_OUT_OF_MEMORY;
