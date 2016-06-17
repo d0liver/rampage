@@ -58,7 +58,7 @@ done:
 }
 
 /* Assemble and flush messages to the user. */
-static enum RmpgErr flush(struct ChannelHandle *handle, lws_wsi *wsi) {
+static enum RmpgErr flush(struct ChannelHandle *handle, struct lws *wsi) {
 	struct MessageQ *msg_q = handle->channel->msg_q;
 	int bytes_written;
 	char *buff;

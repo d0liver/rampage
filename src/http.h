@@ -43,9 +43,8 @@ struct HttpSession {
 };
 
 int http_callback(
-	struct libwebsocket_context *,
-	struct libwebsocket *,
-	enum libwebsocket_callback_reasons,
+	struct lws *,
+	enum lws_callback_reasons,
 	void *, void *, size_t
 );
 

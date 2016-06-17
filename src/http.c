@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
-#include <libwebsockets.h>
 #include <stdlib.h>
+#include <libwebsockets.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -59,14 +59,13 @@ char *verify_path(const char *parent_path, const char *child_path) {
 #define HEADER_ALLOC_MAX (256*50)
 #define HEADER_ALLOC_INC 256
 #define HEADER_FUDGE 5
-/* Header fudge is used because when libwebsockets writes headers for us we
+/* Header fudge is used because when lwss writes headers for us we
  * don't really know how much space it's using in addition to the header name
  * and value so this is just a guess "fudge factor" */
 #define HEADER_FUDGE 5
 
 static enum RmpgErr send_file_response(
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
+	struct lws *wsi,
 	struct HttpResponse *response,
 	const char *headers,
 	const int len_headers
@@ -79,8 +78,8 @@ static enum RmpgErr send_file_response(
 
 	if (!mimetype) {
 		lwsl_err("Unknown mimetype for %s\n", response->resource_path);
-		libwebsockets_return_http_status(
-			context, wsi,
+		lws_return_http_status(
+			wsi,
 			HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE, NULL
 		);
 		return ERROR_UNSUPPORTED_MEDIA_TYPE;
@@ -88,8 +87,8 @@ static enum RmpgErr send_file_response(
 
 	http_debug("Mimetype: %s\n", mimetype);
 	/* Finally, serve out our file and headers */
-	libwebsockets_serve_http_file(
-		context, wsi, response->resource_path,
+	lws_serve_http_file(
+		wsi, response->resource_path,
 		mimetype, NULL, 0
 	);
 
@@ -131,12 +130,11 @@ enum RmpgErr add_response_header(
 }
 
 /* This is a redirect response. We handle it in a special way here because when
- * responding with a file libwebsockets will just respond with a status of 200.
+ * responding with a file lwss will just respond with a status of 200.
  * Ideally both of those kinds of responses should be combined into common
  * response logic but this will do for now. */
 static enum RmpgErr send_redirect_response(
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
+	struct lws *wsi,
 	struct HttpResponse *response
 ) {
 	int bytes_written;
@@ -148,21 +146,21 @@ static enum RmpgErr send_redirect_response(
 		buff_pointer + 4096 - LWS_SEND_BUFFER_PRE_PADDING;
 
 	if (lws_add_http_header_status(
-			context, wsi,
+			wsi,
 			302, &buff_pointer,
 			buff_end_pointer
 	)) return ERROR_FAIL;
 
 	if (lws_add_http_header_by_token(
-			context, wsi,
+			wsi,
 			WSI_TOKEN_HTTP_LOCATION,
 			(unsigned char *)response->redirect_location,
 			strlen(response->redirect_location), &buff_pointer, buff_end_pointer
 	)) return ERROR_FAIL;
-	if (lws_finalize_http_header(context, wsi, &buff_pointer, buff_end_pointer))
+	if (lws_finalize_http_header(wsi, &buff_pointer, buff_end_pointer))
 		return ERROR_FAIL;
 
-	bytes_written = libwebsocket_write(
+	bytes_written = lws_write(
 		wsi,
 		buffer + LWS_SEND_BUFFER_PRE_PADDING,
 		buff_pointer - (buffer + LWS_SEND_BUFFER_PRE_PADDING),
@@ -176,10 +174,9 @@ static enum RmpgErr send_redirect_response(
 
 /* Set the headers on the response */
 static enum RmpgErr set_file_headers(
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
+	struct lws *wsi,
 	struct HttpResponse *response,
-	/* This is an actual string that is built up by libwebsockets for its use
+	/* This is an actual string that is built up by lwss for its use
 	 * internally whereas the headers on *response are an array of key value
 	 * pairs which will have come from one of the routes. */
 	char **headers,
@@ -218,7 +215,8 @@ static enum RmpgErr set_file_headers(
 		}
 
 		if (
-			lws_add_http_header_by_name(context, wsi, 
+			lws_add_http_header_by_name(
+				wsi, 
 				(unsigned char *)response->headers[i].name, 
 				(unsigned char *)response->headers[i].value,
 				strlen(response->headers[i].value), (unsigned char **)&headers_after,
@@ -258,7 +256,7 @@ struct HttpResponse *route(const char *in) {
 	return NULL;
 }
 
-static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
+static char *rebuild_full_uri(struct lws *wsi, char *in) {
 	long args_len, in_len;
 	char *full_uri;
 
@@ -275,8 +273,7 @@ static char *rebuild_full_uri(struct libwebsocket *wsi, char *in) {
 }
 
 struct HttpResponse *http_request(
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
+	struct lws *wsi,
 	void *user,
 	void *in, size_t len
 ) {
@@ -291,8 +288,8 @@ struct HttpResponse *http_request(
 	http_debug("Request URI: %s\n", request_uri);
 
 	if (len < 1) {
-		libwebsockets_return_http_status(
-			context, wsi,
+		lws_return_http_status(
+			wsi,
 			HTTP_STATUS_BAD_REQUEST, NULL
 		);
 		return NULL;
@@ -303,7 +300,7 @@ struct HttpResponse *http_request(
 
 	if (response->resource_path) {
 		status = set_file_headers(
-			context, wsi, response,
+			wsi, response,
 			&headers, &len_headers
 		);
 
@@ -312,7 +309,7 @@ struct HttpResponse *http_request(
 			return NULL;
 
 		status = send_file_response(
-			context, wsi, response,
+			wsi, response,
 			headers, len_headers
 		);
 	}
@@ -320,7 +317,7 @@ struct HttpResponse *http_request(
 		/* TODO: This is a headers only response which allows us to also send
 		 * back a status. It's unfortunate that this is being handled totally
 		 * separately at the moment. */
-		if(status = send_redirect_response(context, wsi, response))
+		if(status = send_redirect_response(wsi, response))
 			/* FIXME: Should return an internal server error */
 			return NULL;
 	}
@@ -331,7 +328,7 @@ struct HttpResponse *http_request(
 	return response;
 }
 
-static enum RmpgErr try_to_reuse(struct libwebsocket *wsi) {
+static enum RmpgErr try_to_reuse(struct lws *wsi) {
 	enum RmpgErr status;
 	int return_code;
 
@@ -343,16 +340,15 @@ static enum RmpgErr try_to_reuse(struct libwebsocket *wsi) {
 }
 
 int http_callback(
-	struct libwebsocket_context *context,
-	struct libwebsocket *wsi,
-	enum libwebsocket_callback_reasons reason, void *user,
+	struct lws *wsi,
+	enum lws_callback_reasons reason, void *user,
 	void *in, size_t len
 ) {
 	struct HttpSession *usr = user;
 
 	if (reason == LWS_CALLBACK_HTTP) {
 		/* FIXME: Could be OOM */
-		usr->response = http_request(context, wsi, usr, in, len);
+		usr->response = http_request(wsi, usr, in, len);
 	}
 	else if (reason == LWS_CALLBACK_HTTP_FILE_COMPLETION) {
 		/* Kill the connection after we sent one file */

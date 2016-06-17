@@ -18,7 +18,6 @@
 #include "http.h"
 #include "evt_mgr.h"
 #include "rampage.h"
-#include "lws_short.h"
 #include "defs.h"
 #include "channel.h"
 #include "session.h"
@@ -35,11 +34,11 @@ static struct RampageOptions {
 	.debug_level = 7,
 	.syslog_options = LOG_PID | LOG_PERROR
 };
-static int callback_lws_rmpg(lws_ctx *, lws_wsi *, lws_callback_reasons, void *, void *, size_t);
+static int callback_lws_rmpg(struct lws *, enum lws_callback_reasons, void *, void *, size_t);
 static struct Channel *world;
 
-static struct libwebsocket_context *context;
-static lws_protocols protocols[] = {
+static struct lws_context *context;
+static struct lws_protocols protocols[] = {
 	/* first protocol must always be HTTP handler */
 	{
 		"http-only",		/* name */
@@ -54,6 +53,20 @@ static lws_protocols protocols[] = {
 		65536,
 	},
 	{ NULL, NULL, 0, 0 } /* terminator */
+};
+
+static const struct lws_extension exts[] = {
+	{
+		"permessage-deflate",
+		lws_extension_callback_pm_deflate,
+		"permessage-deflate"
+	},
+	{
+		"deflate-frame",
+		lws_extension_callback_pm_deflate,
+		"deflate_frame"
+	},
+	{ NULL, NULL, NULL /* terminator */ }
 };
 /* We check to see if this is true in our main loop and exit if so */
 static volatile int force_exit = 0;
@@ -86,8 +99,8 @@ enum RmpgErr rmpg_on(
 	return OK;
 }
 
-/* libwebsockets gave us a write callback. Time to try to write out some data */
-static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
+/* lwss gave us a write callback. Time to try to write out some data */
+static int writeable(struct lws *wsi, struct Session *sess) {
 	int i;
 
     /*
@@ -101,7 +114,7 @@ static int writeable(lws_wsi *wsi, lws_ctx *ctx, struct Session *sess) {
 	}
 
 	if (lws_partial_buffered(wsi) || lws_send_pipe_choked(wsi)) {
-		lws_callback_on_writeable(ctx, wsi);
+		lws_callback_on_writable(wsi);
 		return 0;
 	}
 
@@ -118,7 +131,7 @@ out_of_memory:
 	return 0;
 }
 
-static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, size_t len) {
+static int receive (struct lws *wsi, struct Session *sess, void *in, size_t len) {
 	const size_t remaining = lws_remaining_packet_payload(wsi);
 
 	/* TODO: When should we start dropping? */
@@ -150,7 +163,7 @@ static int receive (lws_wsi *wsi, lws_ctx *ctx, struct Session *sess, void *in, 
 		if(evt_mgr_receive(sess, buff, len) == ERROR_JSON_PARSE)
 			goto json_parse_fail;
 
-		lws_callback_on_writeable(ctx, wsi);
+		lws_callback_on_writable(wsi);
 
         /*
 		 * This will also free up the previous payloads attached to the list.
@@ -174,7 +187,7 @@ json_parse_fail:
 	return 0;
 }
 
-static void init(lws_wsi *wsi, struct Session *sess, void *in, size_t len) {
+static void init(struct lws *wsi, struct Session *sess, void *in, size_t len) {
 	if(session_init(sess) == ERROR_OUT_OF_MEMORY)
 		goto out_of_memory;
 
@@ -186,9 +199,8 @@ out_of_memory:
 }
 
 static int callback_lws_rmpg (
-	lws_ctx *ctx,
-	lws_wsi *wsi,
-	lws_callback_reasons reason,
+	struct lws *wsi,
+	enum lws_callback_reasons reason,
 	void *session, void *in, size_t len
 )
 {
@@ -207,11 +219,11 @@ static int callback_lws_rmpg (
 			break;
 
 		case LWS_CALLBACK_RECEIVE:
-			receive(wsi, ctx, session, in, len);
+			receive(wsi, session, in, len);
 		break;
 
 		case LWS_CALLBACK_SERVER_WRITEABLE:
-			writeable(wsi, ctx, session);
+			writeable(wsi, session);
 			break;
 	}
 
@@ -232,7 +244,7 @@ void init_context(void) {
 
 	info.iface = rmpg_opts.iface;
 	info.protocols = protocols;
-	info.extensions = libwebsocket_get_internal_extensions();
+	info.extensions = exts;
 	if (!rmpg_opts.use_ssl) {
 		info.ssl_cert_filepath = NULL;
 		info.ssl_private_key_filepath = NULL;
@@ -240,11 +252,11 @@ void init_context(void) {
 	else {
 		if (strlen(resource_path) > sizeof(rmpg_opts.cert_path) - 32)
 			lwsl_err("resource path too long\n");
-		sprintf(rmpg_opts.cert_path, "%s/libwebsockets-test-server.pem",
+		sprintf(rmpg_opts.cert_path, "%s/lwss-test-server.pem",
 				resource_path);
 		if (strlen(resource_path) > sizeof(rmpg_opts.key_path) - 32)
 			lwsl_err("resource path too long\n");
-		sprintf(rmpg_opts.key_path, "%s/libwebsockets-test-server.key.pem",
+		sprintf(rmpg_opts.key_path, "%s/lwss-test-server.key.pem",
 				resource_path);
 
 		info.ssl_cert_filepath = rmpg_opts.cert_path;
@@ -254,9 +266,9 @@ void init_context(void) {
 	info.uid = -1;
 	info.options = rmpg_opts.opts;
 
-	context = libwebsocket_create_context(&info);
+	context = lws_create_context(&info);
 	if (context == NULL)
-		lwsl_err("libwebsocket init failed\n");
+		lwsl_err("lws init failed\n");
 }
 
 /* Handle the config options from rampage.ini */
@@ -322,14 +334,14 @@ void rmpg_loop(void) {
 
     /*
 	 * Do the central poll loop.
-	 * Negative statuses from libwebsockets indicate an error.
+	 * Negative statuses from lwss indicate an error.
      */
 	while (status >= 0 && !force_exit)
-		status = libwebsocket_service(context, /* Timeout */ 50);
+		status = lws_service(context, /* Timeout */ 50);
 }
 
 void rmpg_cleanup(void) {
 	/* Cleanup */
-	libwebsocket_context_destroy(context);
+	lws_context_destroy(context);
 	debug("Rampage exited cleanly\n");
 }

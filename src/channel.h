@@ -2,7 +2,6 @@
 
 #include <libwebsockets.h>
 
-#include "lws_short.h"
 #include "message_q.h"
 
 /* See "channel_init" */
@@ -19,7 +18,7 @@ struct Channel {
 
 	/* Methods */
 	struct ChannelHandle *(* handle)(struct Channel *);
-	enum RmpgErr (* flush)(struct ChannelHandle *, lws_wsi *wsi);
+	enum RmpgErr (* flush)(struct ChannelHandle *, struct lws *wsi);
 	enum RmpgErr (* snd)(struct ChannelHandle *, char *, long);
 };
 
