@@ -22,6 +22,7 @@
 #include "channel.h"
 #include "session.h"
 
+void (*user_init_handler)(struct Session *);
 static struct RampageOptions {
 	char cert_path[1024], key_path[1024], interface_name[128];
 	int n, use_ssl, opts;
@@ -189,13 +190,9 @@ json_parse_fail:
 
 static void init(struct lws *wsi, struct Session *sess, void *in, size_t len) {
 	if(session_init(sess) == ERROR_OUT_OF_MEMORY)
-		goto out_of_memory;
-
-	return;
-
-out_of_memory:
-	fprintf(stderr, "Out of memory.\n");
-	return;
+		fprintf(stderr, "Out of memory.\n");
+	
+	user_init_handler(sess);
 }
 
 static int callback_lws_rmpg (
@@ -225,6 +222,8 @@ static int callback_lws_rmpg (
 		case LWS_CALLBACK_SERVER_WRITEABLE:
 			writeable(wsi, session);
 			break;
+
+		/* TODO: Add in cleanup for socket closing */
 	}
 
 	return 0;
@@ -304,6 +303,10 @@ void config_handler(struct Option *opt) {
 		resource_path = opt->value;
 		printf("Setting resource path to \"%s\"\n", resource_path);
 	}
+}
+
+void rmpg_register_init_handler(void (*handler)(struct Session *)) {
+	user_init_handler = handler;
 }
 
 void rmpg_init(void (*user_config_handler)(struct Option *)) {
