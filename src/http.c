@@ -13,6 +13,7 @@
 
 static struct HttpContext http_ctx;
 struct Extension extensions[] = {
+	{".coffee", "text/coffeescript"},
 	{".ico", "image/x-icon"},
 	{".png", "image/png"},
 	{".html", "text/html"},

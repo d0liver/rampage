@@ -28,12 +28,13 @@ static struct ChannelHandle *handle(struct Channel *ch) {
 	 */
 	handle->head = ch->msg_q->tail;
 	handle->channel = ch;
+	if (ch->num_handles < MAX_CHANNEL_HANDLES)
+		ch->handles[ch->num_handles++] = handle;
 
 	return handle;
 }
 
 /* FIXME: check_free is broken and causes segfault currently */
-/* Assemble a message from the queue so that we can try to send it */
 static void check_free(struct Channel *ch) {
 	struct MessageQ *msg_q = ch->msg_q;
 	struct Node *n;
@@ -49,12 +50,13 @@ static void check_free(struct Channel *ch) {
      */
 	for (n = msg_q->head; ; n = n->next)
 		for (i = 0; i < ch->num_handles; ++i)
-			if (n == ch->handles[i].head)
+			if (n == ch->handles[i]->head)
 				goto done;
+
 done:
 
 	/* Remove all of the old data that has been ready by everybody already. */
-	ch->msg_q->prune(ch->msg_q, n);
+	ch->msg_q->prune(msg_q, n);
 }
 
 /* Assemble and flush messages to the user. */
@@ -109,8 +111,8 @@ static enum RmpgErr flush(struct ChannelHandle *handle, struct lws *wsi) {
 		 * channel to use the nodes that we just released)
 		 */
 		/* TODO: Fix this segfault so nodes are freed once our message is sent */
-		/* check_free(handle->channel); */
-		/* free(buff - LWS_SEND_BUFFER_PRE_PADDING); */
+		check_free(handle->channel);
+		free(buff - LWS_SEND_BUFFER_PRE_PADDING);
 
 	}
 
@@ -150,6 +152,8 @@ struct Channel *channel_init(void) {
 		free(ch);
 		return NULL;
 	}
+	/* We don't bother to initialize ch->handles here, no need. */
+	ch->num_handles = 0;
 
 	/* Methods */
 	ch->handle = handle;

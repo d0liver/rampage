@@ -8,7 +8,7 @@
 #include "http.h"
 #include "read_ini.h"
 
-void rmpg_init(void (*)(struct Option *));
+void rmpg_init(void (*)(struct Option **));
 void rmpg_loop(void);
 void rmpg_cleanup(void);
 #define RAMPAGE_H

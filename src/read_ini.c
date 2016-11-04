@@ -49,23 +49,30 @@ option_oom:
 }
 
 /* Returns an array of options */
-void read_config(FILE *fp, void (**handle_opt)(struct Option *)) {
+void read_config(FILE *fp, void (**handle_opt)(struct Option **)) {
 	char line[1024];
-	struct Option *opt;
-	void (**tmp)(struct Option *) = handle_opt;
+	struct Option **opts, **ptr;
+	int line_count = 0;
+	void (**tmp)(struct Option **) = handle_opt;
 
-	while (fgets(line, 1024, fp)) {
-		opt = parse_opt_line(line);
-		for (tmp = handle_opt; *tmp; *tmp++)
-			(*tmp)(opt);
-	}
+	/* First, count the number of lines in the file */
+	while (fgets(line, 1024, fp))
+		++line_count;
 
-	/*
-	 * We call the handler with NULL now to let it know that there are no more
-	 * options to parse.
-	 */
-	for (; *handle_opt; *handle_opt++)
-		(*handle_opt)(NULL);
+	rewind(fp);
+	printf("Line count: %d\n", line_count);
+
+	/* This could be slightly too large. Oh well. */
+	opts = ptr = malloc(sizeof(struct Option *)*line_count+1);
+	/* Gather our opts */
+	for (; fgets(line, 1024, fp); ++ptr)
+		*ptr = parse_opt_line(line);
+
+	*ptr = NULL;
+
+	/* Call the specified callbacks with the list of options */
+	for (; *tmp; ++tmp)
+		(*tmp)(opts);
 
 	if (ferror(fp))
 		fprintf(stderr, "An error occurred while reading the config file.\n");

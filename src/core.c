@@ -271,48 +271,45 @@ void init_context(void) {
 }
 
 /* Handle the config options from rampage.ini */
-void config_handler(struct Option *opt) {
+void config_handler(struct Option **opts) {
 
-	/*
-	 * If opt is NULL then we are finished parsing options so we can build the
-	 * context from it.
-	 */
-	if (!opt) {
-		init_context(/* uses rmpg_opts */);
-		return;
+	for (; *opts; ++opts) {
+		struct Option *opt = *opts;
+		if (!strcmp(opt->key, "libev"))
+			rmpg_opts.opts |= LWS_SERVER_OPTION_LIBEV;
+		else if(!strcmp(opt->key, "daemonize"))
+			rmpg_opts.daemonize = 1;
+		else if (!strcmp(opt->key, "debug_level"))
+			rmpg_opts.debug_level = atoi(opt->value);
+		else if (!strcmp(opt->key, "use_ssl"))
+			rmpg_opts.use_ssl = 1;
+		else if (!strcmp(opt->key, "allow_ssl_on_non_ssl_port"))
+			rmpg_opts.opts |= LWS_SERVER_OPTION_ALLOW_NON_SSL_ON_SSL_PORT;
+		else if (!strcmp(opt->key, "port"))
+			info.port = atoi(opt->value);
+		else if (!strcmp(opt->key, "interface_name")) {
+			strncpy(rmpg_opts.interface_name, opt->value, sizeof(rmpg_opts.interface_name));
+			/* In case of truncation. */
+			rmpg_opts.interface_name[sizeof(rmpg_opts.interface_name) - 1] = '\0';
+			rmpg_opts.iface = rmpg_opts.interface_name;
+		}
+		else if (!strcmp(opt->key, "resource_path")) {
+			resource_path = opt->value;
+			printf("Setting resource path to \"%s\"\n", resource_path);
+		}
 	}
-	if (!strcmp(opt->key, "libev"))
-		rmpg_opts.opts |= LWS_SERVER_OPTION_LIBEV;
-	else if(!strcmp(opt->key, "daemonize"))
-		rmpg_opts.daemonize = 1;
-	else if (!strcmp(opt->key, "debug_level"))
-		rmpg_opts.debug_level = atoi(opt->value);
-	else if (!strcmp(opt->key, "use_ssl"))
-		rmpg_opts.use_ssl = 1;
-	else if (!strcmp(opt->key, "allow_ssl_on_non_ssl_port"))
-		rmpg_opts.opts |= LWS_SERVER_OPTION_ALLOW_NON_SSL_ON_SSL_PORT;
-	else if (!strcmp(opt->key, "port"))
-		info.port = atoi(opt->value);
-	else if (!strcmp(opt->key, "interface_name")) {
-		strncpy(rmpg_opts.interface_name, opt->value, sizeof(rmpg_opts.interface_name));
-		/* In case of truncation. */
-		rmpg_opts.interface_name[sizeof(rmpg_opts.interface_name) - 1] = '\0';
-		rmpg_opts.iface = rmpg_opts.interface_name;
-	}
-	else if (!strcmp(opt->key, "resource_path")) {
-		resource_path = opt->value;
-		printf("Setting resource path to \"%s\"\n", resource_path);
-	}
+
+	init_context(/* uses rmpg_opts */);
 }
 
 void rmpg_register_init_handler(void (*handler)(struct Session *)) {
 	user_init_handler = handler;
 }
 
-void rmpg_init(void (*user_config_handler)(struct Option *)) {
+void rmpg_init(void (*user_config_handler)(struct Option **)) {
 	/* First, read the config */
 	FILE *fp = fopen("rampage.ini", "rb");
-	void (*handle_opt[])(struct Option *) =
+	void (*handle_opt[])(struct Option **) =
 		{config_handler, user_config_handler, NULL};
 
 	if (!fp) {

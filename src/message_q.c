@@ -49,8 +49,6 @@ static inline struct Node *destroy_node(struct MessageQ *msg_q, struct Node *n) 
 		 * need to put a null term on it */
 		tmp = malloc(n->payload_size + 1);
 		tmp[n->payload_size] = '\0';
-		/* TODO: Add nullterm to this debug */
-		/* debug("Freeing payload: %s\n", n->payload); */
 	}
 	msg_q->bytes -= n->payload_size;
 	free(n->payload);

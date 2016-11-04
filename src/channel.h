@@ -4,6 +4,8 @@
 
 #include "message_q.h"
 
+#define MAX_CHANNEL_HANDLES 1000
+
 /* See "channel_init" */
 struct Channel {
 	char *name;
@@ -13,7 +15,7 @@ struct Channel {
 	 * We keep a list of the handles that we have issued so that we know when
 	 * to clean things up.
      */
-	struct ChannelHandle *handles;
+	struct ChannelHandle *handles[MAX_CHANNEL_HANDLES];
 	int num_handles;
 
 	/* Methods */
